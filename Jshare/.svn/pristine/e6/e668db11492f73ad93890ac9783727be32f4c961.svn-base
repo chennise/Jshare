@@ -1,0 +1,46 @@
+package com.digitalchina.web.common.share.vo;
+
+import java.io.Serializable;
+
+import com.digitalchina.web.common.db.nosql.mongo.annotation.Collection;
+import com.digitalchina.web.common.db.nosql.mongo.annotation.Embedded;
+import com.digitalchina.web.common.db.nosql.mongo.annotation.Id;
+
+/**
+ * 类型描述：<br/>
+ * 圈子对象
+ * 
+ * @author LJn
+ *
+ */
+@Collection("circle")
+public class CircleVo implements Serializable{
+	
+	private static final long serialVersionUID = 1L;
+	
+	@Id
+	private String id; // id
+	private String name; // 名称
+	@Embedded
+	private UserVo publisher; // 创建者
+	
+	public String getId() {
+		return id;
+	}
+	public void setId(String id) {
+		this.id = id;
+	}
+	public String getName() {
+		return name;
+	}
+	public void setName(String name) {
+		this.name = name;
+	}
+	public UserVo getPublisher() {
+		return publisher;
+	}
+	public void setPublisher(UserVo publisher) {
+		this.publisher = publisher;
+	}
+	
+}

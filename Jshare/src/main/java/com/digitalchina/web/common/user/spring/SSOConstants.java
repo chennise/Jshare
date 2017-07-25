@@ -1,0 +1,41 @@
+package com.digitalchina.web.common.user.spring;
+
+import org.apache.commons.lang.StringUtils;
+
+import com.digitalchina.web.common.util.config.PropertiesHandler;
+
+/**
+ * 类型描述：<br/>
+ * 单点登录属性
+ * 
+ * @createTime 2016年6月26日
+ * @author maiwj
+ * 
+ */
+public interface SSOConstants {
+	
+	/**
+	 * 常量描述：<br/>
+	 * Cookie名称
+	 */
+	String USER_TOKEN_COOKIE_NAME = "JUSERTOKEN";
+
+	/**
+	 * 常量描述：<br/>
+	 * Cookie Domain
+	 */
+	String USER_TOKEN_COOKIE_DOMAIN = PropertiesHandler.getProperty("sso.cookie.domain", ".greenecp.com");
+
+	/**
+	 * 常量描述：<br/>
+	 * Cookie Path
+	 */
+	String USER_TOKEN_COOKIE_PATH = PropertiesHandler.getProperty("sso.cookie.path", "/");
+
+	/**
+	 * 常量描述：<br/>
+	 * Cookie isHTTPS
+	 */
+	boolean USER_TOKEN_COOKIE_HTTPS = StringUtils.equals(PropertiesHandler.getProperty("sso.cookie.https"), "true");
+
+}

@@ -1,0 +1,457 @@
+package com.digitalchina.web.common.share.service;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.Base64Utils;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.digitalchina.frame.message.MessageObject;
+import com.digitalchina.frame.message.ServiceContext;
+import com.digitalchina.frame.security.AuthUser;
+import com.digitalchina.web.common.api.ResultPageVo;
+import com.digitalchina.web.common.hack.dfh.AbstractCommonService;
+import com.digitalchina.web.common.share.api.ShareConstants;
+import com.digitalchina.web.common.share.bussiness.CircleManager;
+import com.digitalchina.web.common.share.bussiness.ShareRecordManager;
+import com.digitalchina.web.common.share.bussiness.UserBindManager;
+import com.digitalchina.web.common.share.bussiness.WeixinRemote;
+import com.digitalchina.web.common.share.utils.ImageUtil;
+import com.digitalchina.web.common.share.vo.CircleVo;
+import com.digitalchina.web.common.share.vo.ShareRecordVo;
+import com.digitalchina.web.common.share.vo.UserVo;
+import com.digitalchina.web.common.user.api.Constants;
+import com.digitalchina.web.common.user.api.IUserSocialManager;
+import com.digitalchina.web.common.user.vo.UserSocialVo;
+import com.digitalchina.web.common.util.config.PropertiesHandler;
+import com.digitalchina.web.common.util.lang.NumberHandler;
+import com.digitalchina.web.common.util.lang.ObjectHandler;
+import com.qiniu.http.Response;
+import com.qiniu.storage.UploadManager;
+import com.qiniu.util.Auth;
+
+/**
+ * 类型描述：<br/>
+ * 碳闲置Action
+ * 
+ * @author LJn
+ */
+@RestController
+public class ShareService extends AbstractCommonService{
+
+	private final static Logger LOG = LogManager.getLogger(ShareService.class);
+
+	/*private final static String IMAGE_TYPE_REGEX = "^(jpg|png|gif|jpeg)$";*/
+	private static final String IMAGE_URL = PropertiesHandler.getProperty("image.url");
+	
+	@Autowired
+	private CircleManager circleManager;
+	@Autowired
+	private ShareRecordManager recordManager;
+	@Autowired
+	private UserBindManager userBindManager;
+	@Autowired
+	private IUserSocialManager userSocialManager;
+	@Autowired
+	private WeixinRemote weixinRemote;
+	
+	/**
+	 * 方法描述：<br/>
+	 * 增加圈子
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param serviceContext
+	 */
+	public void saveCircle(final ServiceContext serviceContext) {
+
+		try {
+			MessageObject msgObj = serviceContext.getRequestData();
+			
+			String name = ObjectHandler.toString(getValue(msgObj, "name"));
+			Integer type = NumberHandler.toInteger(getValue(msgObj, "type"));
+			
+			if (StringUtils.isBlank(name) || type == null) {
+				setFailResult(serviceContext);
+				return;
+			}
+			
+			AuthUser currentUser = getAuthUser(serviceContext); // 当前用户信息
+			String publisherId = currentUser.getUserid().toString();
+			String publisherName = currentUser.getLogin();
+			String publisherNickname = currentUser.getNickname();
+
+			String circleId = new ObjectId().toHexString();
+			
+			UserSocialVo userSocial = userSocialManager
+				.findVo(UserSocialVo.createByUserId(Long.parseLong(publisherId)));
+			
+			CircleVo circle = CircleVo.createById(circleId);
+			UserVo publisher = new UserVo();
+			publisher.setUserId(publisherId);
+			publisher.setName(publisherName);
+			publisher.setNickname(publisherNickname);
+			publisher.setSocialId(userSocial.getSocialId());
+			
+			circle.setName(name);
+			circle.setPublisher(publisher);
+			
+			circleManager.doSave(circle);
+			
+			UserVo findUser = userBindManager.findByUserId(publisherId);
+			findUser.getCircles().add(circle);
+			userBindManager.doModify(findUser);
+			
+			setSuccessResult(serviceContext);
+		} catch (Exception e) {
+			LOG.error(e);
+			setFailResult(serviceContext);
+		}
+
+	}
+	
+	/**
+	 * 方法描述：<br/>
+	 * 根据用户查找圈子
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param serviceContext
+	 */
+	public void findcircles(final ServiceContext serviceContext) {
+
+		try {
+			AuthUser currentUser = getAuthUser(serviceContext); // 当前用户信息
+			String userId = currentUser.getUserid().toString();
+			
+			UserVo result = userBindManager.findByUserId(userId);
+			
+			setSuccessResult(serviceContext, result);
+		} catch (Exception e) {
+			LOG.error(e);
+			setFailResult(serviceContext);
+		}
+
+	}
+	
+	
+	/**
+	 * 方法描述：<br/>
+	 * 增加闲置品
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param serviceContext
+	 */
+	public void saveShare(final ServiceContext serviceContext) {
+		try {
+			MessageObject msgObj = serviceContext.getRequestData();
+			String name = ObjectHandler.toString(getValue(msgObj, "name"));
+			String summary = ObjectHandler.toString(getValue(msgObj, "summary"));
+			Integer type = NumberHandler.toInteger(getValue(msgObj, "type"));
+			String[] circleIds = ObjectHandler.toString(getValue(msgObj, "circleIds")).split(",");
+			String serverId = ObjectHandler.toString(getValue(msgObj, "serverId"));
+			String imgUrl = ObjectHandler.toString(getValue(msgObj, "imgUrl"));
+			
+			AuthUser currentUser = getAuthUser(serviceContext); // 当前用户信息
+			String publisherId = currentUser.getUserid().toString();
+			UserVo publisher = userBindManager.findByUserId(publisherId);
+			
+			List<CircleVo> circles = new ArrayList<CircleVo>(circleIds.length);
+			for(String circleId : circleIds){
+				for(CircleVo circleVo : publisher.getCircles()){
+					if(StringUtils.equals(circleVo.getId(), circleId)){
+						circles.add(circleVo);
+					}
+				}
+			}
+			
+			if (StringUtils.isNotBlank(imgUrl)) {
+				
+				ShareRecordVo shareRecord = new ShareRecordVo();
+				shareRecord.setName(name);
+				shareRecord.setSummary(summary);
+				shareRecord.setType(type);
+				shareRecord.setImageUrl(imgUrl);
+				shareRecord.setPublisher(publisher);
+				shareRecord.setCircles(circles);
+				
+				recordManager.doSave(shareRecord);
+				
+				setFailResult(serviceContext);
+				
+			}else if(StringUtils.isNotBlank(serverId)){
+				
+				try {
+					//密钥配置
+					Auth auth = Auth.create(Constants.IMAGE_AK, Constants.IMAGE_SK);
+					
+					//创建上传对象
+					UploadManager uploadManager = new UploadManager();
+					String imgFilePath = publisher.getId() + System.currentTimeMillis() + ".png";
+					File picture = new File(imgFilePath);
+					String key = "share/" + picture.getName();
+					String imageUrl = IMAGE_URL + key;
+					String token = auth.uploadToken(Constants.IMAGE_BUCKETNAME);
+						
+					Response result = uploadManager.put(weixinRemote.getMediaUrl(serverId), key, token);
+					
+					if (result.isOK()) {
+						picture.delete();
+							
+						ShareRecordVo shareRecord = new ShareRecordVo();
+						shareRecord.setName(name);
+						shareRecord.setSummary(summary);
+						shareRecord.setType(type);
+						shareRecord.setImageUrl(imageUrl);
+						shareRecord.setPublisher(publisher);
+						shareRecord.setCircles(circles);
+							
+						recordManager.doSave(shareRecord);
+							
+						setFailResult(serviceContext);
+					}
+
+					if (!result.isOK()) {
+						setFailResult(serviceContext);
+					}
+					
+				} catch (IOException e) {
+					setFailResult(serviceContext);
+				}
+			}else{
+				setFailResult(serviceContext);
+			}
+			
+			setFailResult(serviceContext);
+			
+		} catch (Exception e) {
+			LOG.error(e);
+			setFailResult(serviceContext);
+		}
+
+	}
+	
+	/**
+	 * 方法描述：<br/>
+	 * 查找闲置品
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param serviceContext
+	 */
+	public void findShare(final ServiceContext serviceContext) {
+
+		try {
+			MessageObject msgObj = serviceContext.getRequestData();
+			
+			String circleId = ObjectHandler.toString(getValue(msgObj, "circleId"));
+			Integer type = NumberHandler.toInteger(getValue(msgObj, "type"), 0);
+
+			Integer requestPage = NumberHandler.toInteger(getValue(msgObj, "requestPage"), 1);
+			Integer pageSize = NumberHandler.toInteger(getValue(msgObj, "pageSize"), 20);
+			
+			if (StringUtils.isBlank(circleId)) {
+				setFailResult(serviceContext);
+			} 
+			
+			Map<String, Object> conditions = new HashMap<String, Object>(2);
+			conditions.put("circleId", circleId);
+			conditions.put("type", type);
+			
+			ResultPageVo<?> result = recordManager
+					.findVos(requestPage, pageSize, conditions);
+			
+			setSuccessResult(serviceContext, result);
+		} catch (Exception e) {
+			LOG.error(e);
+			setFailResult(serviceContext);
+		}
+
+	}
+	
+	/**
+	 * 方法描述：<br/>
+	 * 查找我的闲置品列表
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param serviceContext
+	 */
+	public void findMyShare(final ServiceContext serviceContext) {
+
+		try {
+			MessageObject msgObj = serviceContext.getRequestData();
+			
+			Integer requestPage = NumberHandler.toInteger(getValue(msgObj, "requestPage"), 1);
+			Integer pageSize = NumberHandler.toInteger(getValue(msgObj, "pageSize"), 20);
+			
+			AuthUser currentUser = getAuthUser(serviceContext); // 当前用户信息
+			String userId = currentUser.getUserid().toString();
+			UserVo publisher = userBindManager.findByUserId(userId);
+			
+			ResultPageVo<?> result = null;
+			if(!ObjectHandler.isEmpty(publisher)){
+				result = recordManager
+						.findByPublisher(publisher.getId(), requestPage, pageSize);
+			}
+			
+			setSuccessResult(serviceContext, result);
+		} catch (Exception e) {
+			LOG.error(e);
+			setFailResult(serviceContext);
+		}
+
+	}
+	
+	/**
+	 * 方法描述：<br/>
+	 * 申请闲置品
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param serviceContext
+	 */
+	public void applyShare(final ServiceContext serviceContext) {
+
+		try {
+			MessageObject msgObj = serviceContext.getRequestData();
+			
+			String recordId = ObjectHandler.toString(getValue(msgObj, "recordId"));
+			String remark = ObjectHandler.toString(getValue(msgObj, "remark"));
+			
+			if (StringUtils.isBlank(recordId)) {
+				setFailResult(serviceContext);
+			} 
+			
+			AuthUser currentUser = getAuthUser(serviceContext); // 当前用户信息
+			String applicantId = currentUser.getUserid().toString();
+			UserVo applicant = userBindManager.findByUserId(applicantId);
+			applicant.setApplyState(ShareConstants.APPLYSTATE_NO);
+			applicant.setRemark(remark);
+			applicant.setApplyTime(System.currentTimeMillis());
+			applicant.setCircles(null);
+			
+			ShareRecordVo recordVo = recordManager.findVo(recordId);
+			List<UserVo> applicants = recordVo.getApplicants();
+			if(CollectionUtils.isEmpty(applicants)){ applicants = new ArrayList<UserVo>();}
+			applicants.add(applicant);
+			
+			recordVo.setApplicants(applicants);
+			recordVo.setApplyNum(recordVo.getApplyNum()+1);
+			
+			weixinRemote.sendTemplateMessage(recordVo.getPublisher().getSocialId(), recordVo, applicant.getNickname()+"申请了你的闲置，请查看", "分享中", "感谢您的使用"); // 发送模板消息
+			
+			recordManager.doModify(recordVo);
+			
+			setSuccessResult(serviceContext);
+		} catch (Exception e) {
+			LOG.error(e);
+			setFailResult(serviceContext);
+		}
+
+	}
+	
+	/**
+	 * 方法描述：<br/>
+	 * 查找我的消息
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param serviceContext
+	 */
+	public void findMyMessage(final ServiceContext serviceContext) {
+
+		try {
+			MessageObject msgObj = serviceContext.getRequestData();
+
+			Integer requestPage = NumberHandler.toInteger(getValue(msgObj, "requestPage"), 1);
+			Integer pageSize = NumberHandler.toInteger(getValue(msgObj, "pageSize"), 20);
+			
+			AuthUser currentUser = getAuthUser(serviceContext); // 当前用户信息
+			String userId = currentUser.getUserid().toString();
+			UserVo publisher = userBindManager.findByUserId(userId);
+			
+			ResultPageVo<ShareRecordVo> case1 = recordManager.findMyWork(publisher.getId(), requestPage, pageSize);
+			ResultPageVo<ShareRecordVo> case2 = recordManager.findMyApply(publisher.getId(), requestPage, pageSize);
+			
+			HashMap<String, Object> result = new HashMap<String, Object>(2);
+			result.put("case1", case1);
+			result.put("case2", case2);
+			
+			setSuccessResult(serviceContext, result);
+		} catch (Exception e) {
+			LOG.error(e);
+			setFailResult(serviceContext);
+		}
+
+	}
+	
+	/**
+	 * 方法描述：<br/>
+	 * 赠送闲置品
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param serviceContext
+	 */
+	public void giveShare(final ServiceContext serviceContext) {
+
+		try {
+			MessageObject msgObj = serviceContext.getRequestData();
+			
+			String recordId = ObjectHandler.toString(getValue(msgObj, "recordId"));
+			String applicantId = ObjectHandler.toString(getValue(msgObj, "applicantId"));
+			
+			if (StringUtils.isBlank(recordId) || StringUtils.isBlank(applicantId)) {
+				setFailResult(serviceContext);
+			} 
+			
+			ShareRecordVo recordVo = recordManager.findVo(recordId);
+			
+			List<UserVo> applicants = recordVo.getApplicants();
+			if(CollectionUtils.isNotEmpty(applicants)){
+				for(UserVo applicant : applicants){
+					if(StringUtils.equals(applicant.getId(), applicantId)){
+						applicant.setApplyState(ShareConstants.APPLYSTATE_SUCC);
+						weixinRemote.sendTemplateMessage(applicant.getSocialId(), recordVo, "恭喜！"+recordVo.getPublisher().getNickname()+"同意了你的申请，请查看", "申请成功", "联系方式："+ recordVo.getPublisher().getName()+"\n感谢您的使用"); // 发送模板消息
+					}else{
+						applicant.setApplyState(ShareConstants.APPLYSTATE_FAIL);
+						weixinRemote.sendTemplateMessage(applicant.getSocialId(), recordVo, "很遗憾！你的申请没有通过", "申请失败", "感谢您的使用"); // 发送模板消息
+					}
+				}
+			}
+			
+			recordVo.setApplicants(applicants);
+			recordVo.setStatus(ShareConstants.STATUS_FINISH);
+			recordManager.doModify(recordVo);
+			
+			setSuccessResult(serviceContext);
+		} catch (Exception e) {
+			LOG.error(e);
+			setFailResult(serviceContext);
+		}
+
+	}
+	
+}

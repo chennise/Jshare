@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<search xmlns="http://www.digitalchina.com/schema/search"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.digitalchina.com/schema/search http://123.56.142.45/elasticsearch.xsd">
+	
+	<nodes name="mo-es">
+		<node host="121.42.165.201"/>
+	</nodes>
+	<indices>
+		<index name="share" debug="true">
+			<mappings>
+				<type name="records" id="id" snapshot="true" class="com.digitalchina.web.common.share.vo.ShareRecordVo">
+					<!-- <string name="name" analyzer="ik_max_word" search_analyzer="ik_max_word"/>
+					<string name="summary" analyzer="ik_max_word" search_analyzer="ik_max_word"/>
+					<long name="publishTime" index="not_analyzed"/>
+					<string name="imageUrl" index="not_analyzed"/>
+					<integer name="status" index="not_analyzed"/>
+					<integer name="type" index="not_analyzed"/>
+					<string name="imageUrl" index="not_analyzed"/>
+					<string name="imageUrl" index="not_analyzed"/>
+					<object name="publisher">
+						<string name="id" index="not_analyzed"/>
+						<string name="name" index="not_analyzed"/>
+						<string name="nickname" analyzer="ik_max_word" search_analyzer="ik_max_word"/>
+					</object> -->
+				</type>
+			</mappings>
+		</index>
+	</indices>
+
+</search>

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+	xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:aop="http://www.springframework.org/schema/aop" 
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xsi:schemaLocation="
+		http://www.springframework.org/schema/beans 
+		http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+		http://www.springframework.org/schema/context 
+		http://www.springframework.org/schema/context/spring-context-4.0.xsd
+		http://www.springframework.org/schema/tx 
+		http://www.springframework.org/schema/tx/spring-tx.xsd
+		http://www.springframework.org/schema/mvc 
+		http://www.springframework.org/schema/mvc/spring-mvc-4.0.xsd
+		http://www.springframework.org/schema/aop 
+		http://www.springframework.org/schema/aop/spring-aop.xsd">
+
+	<!-- 注解扫描，容器入库 -->
+	<context:component-scan base-package="com.digitalchina.web.common" use-default-filters="true">
+		<context:exclude-filter expression="org.springframework.stereotype.Controller"
+			type="annotation" />
+	</context:component-scan>
+	<!-- 对配置切面做注入 -->
+	<aop:aspectj-autoproxy />
+	
+	<!-- 属性配置文件的加载 -->
+	<bean id="configs" class="com.digitalchina.web.common.spring.beans.factory.config.PropertiesFactoryBean">
+	   <property name="locations">
+	      <list>
+	      	  <value>classpath:system.properties</value>
+	      </list>
+	   </property>
+	</bean>
+	
+	<!-- dc-common-search配置 -->
+	<bean class="com.digitalchina.web.common.search.SessionFactory"
+		p:location="classpath:/config-search.xml" />
+	
+	<!-- dc-common-nosql配置 -->
+	<bean id="taskExecutor"
+		 class="org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor"
+		 p:corePoolSize="4"
+		 p:maxPoolSize="16"
+		 p:allowCoreThreadTimeOut="true"/>
+	<bean id="noSqlSessionFactory"
+		class="com.digitalchina.web.common.db.nosql.mongo.MongoDBSessionFactoryBean"
+		p:url="#{configs['mongo.url']}" 
+		p:taskExecutor-ref="taskExecutor"/>
+	<bean class="com.digitalchina.web.common.db.nosql.MapperScannerConfigurer"
+		p:basePackage="com.digitalchina.web"
+		p:noSqlSessionFactory-ref="noSqlSessionFactory" 
+		p:scanner="com.digitalchina.web.common.db.nosql.mongo.MongoDBMapperScanner"/>
+	
+	<!-- ===============================业务数据源事务==================================== -->
+	<!-- 配置数据源 -->
+	<bean id="businessDataSource" class="com.alibaba.druid.pool.DruidDataSource" 
+		init-method="init" 
+		destroy-method="close"
+		p:name="mall-sso-business"
+		p:url="#{configs['mysql.url']}"
+		p:username="#{configs['mysql.username']}"
+		p:password="#{configs['mysql.password']}"
+		p:validationQuery="SELECT 1"
+		p:testOnBorrow="false"
+		p:testOnReturn="false"
+		p:testWhileIdle="true"
+		p:filters="log4j"
+		p:timeBetweenEvictionRunsMillis="60000"
+		p:minEvictableIdleTimeMillis="300000"
+		p:poolPreparedStatements="false"
+		p:maxOpenPreparedStatements="-1"
+		p:initialSize="#{configs['mysql.connectionInitalSize']}"
+		p:minIdle="#{configs['mysql.connectionMinIdleSize']}"
+		p:maxActive="#{configs['mysql.connectionMaxActiveSize']}"
+		p:maxWait="60000"/>
+	<!-- 配置数据源会话工厂 -->
+	<bean id="businessSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean"
+		p:dataSource-ref="businessDataSource" p:configLocation="classpath:config-mybatis.xml" />
+	<!-- 扫描数据访问层 -->
+	<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer"
+		p:basePackage="com.digitalchina.web"
+		p:markerInterface="com.digitalchina.web.common.dao.IDao"
+		p:sqlSessionFactory-ref="businessSessionFactory"
+	/>
+	<!-- 配置业务数据源的事务管理器 -->
+	<bean id="bussinessTransactionManager"
+		class="org.springframework.jdbc.datasource.DataSourceTransactionManager"
+		p:dataSource-ref="businessDataSource" />
+	<tx:advice id="businessTransactionAdvice"
+		transaction-manager="bussinessTransactionManager">
+		<tx:attributes>
+			<tx:method name="do*" propagation="REQUIRED" rollback-for="Exception" />
+			<tx:method name="find*" read-only="true" />
+			<tx:method name="get*" read-only="true" />
+		</tx:attributes>
+	</tx:advice>
+	<aop:config>
+		<aop:advisor advice-ref="businessTransactionAdvice"
+			pointcut="execution(* com.digitalchina.web..*Manager.*(..))" />
+	</aop:config>
+	<!-- ===============================业务数据源事务==================================== -->
+</beans>

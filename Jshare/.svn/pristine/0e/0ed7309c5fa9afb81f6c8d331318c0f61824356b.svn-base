@@ -1,0 +1,136 @@
+package com.digitalchina.web.common.user.spring;
+
+import com.digitalchina.web.common.user.api.IUserManager;
+import com.digitalchina.web.common.user.business.UserCache;
+import com.digitalchina.web.common.user.vo.UserVo;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+
+/**
+ * 类型描述：<br/>
+ * 单点登录中的用户信息
+ * 
+ * @createTime 2016年6月25日
+ * @author maiwj
+ * 
+ */
+@JsonInclude(Include.NON_NULL) // 不能使用NON_EMPTY，因为会对数值类型为0的进行去除
+public class SSOUser extends UserVo {
+
+	private static final long serialVersionUID = 1083046517087898387L;
+
+	@JsonIgnore
+	private final Long userId;
+	@JsonIgnore
+	private final UserCache userCache;
+	@JsonIgnore
+	private final IUserManager userManager;
+	@JsonIgnore
+	private UserVo real;
+
+	public SSOUser(Long userId, UserCache userCache, IUserManager userManager) {
+		this.userId = userId;
+		this.userCache = userCache;
+		this.userManager = userManager;
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 获取真实用户
+	 * 
+	 * @createTime 2016年6月26日
+	 * @author maiwj
+	 *
+	 * @return
+	 */
+	private UserVo getRealUser() {
+		if (real == null) {
+			real = userCache.get(userId);
+		}
+		return real;
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 刷新
+	 * 
+	 * @createTime 2016年7月4日
+	 * @author maiwj
+	 *
+	 */
+	private void flush() {
+		userCache.set(userId, getRealUser());
+	}
+
+	@Override
+	public Long getId() {
+		return userId;
+	}
+
+	@Override
+	public Long getPhone() {
+		return getRealUser().getPhone();
+	}
+
+	@Override
+	public String getNickname() {
+		return getRealUser().getNickname();
+	}
+
+	@Override
+	public Integer getSex() {
+		return getRealUser().getSex();
+	}
+
+	@Override
+	public String getImageUrl() {
+		return getRealUser().getImageUrl();
+	}
+	
+	@Override
+	public Long getRegisterTime() {
+		return getRealUser().getRegisterTime();
+	}
+	
+	/*
+	 * setter
+	 */
+
+	@Override
+	public void setNickname(String nickname) {
+		getRealUser().setNickname(nickname);
+		this.flush();
+	}
+
+	@Override
+	public void setEmail(String email) {
+		getRealUser().setEmail(email);
+		this.flush();
+	}
+
+	@Override
+	public void setSex(Integer sex) {
+		getRealUser().setSex(sex);
+		this.flush();
+	}
+
+	@Override
+	public void setImageUrl(String imageUrl) {
+		getRealUser().setImageUrl(imageUrl);
+		this.flush();
+	}
+
+	@Override
+	public void setPhone(Long phone) {
+		getRealUser().setPhone(phone);
+		this.flush();
+	}
+
+	@Override
+	public void setAddress(String address) {
+		getRealUser().setAddress(address);
+		this.flush();
+	}
+	
+}

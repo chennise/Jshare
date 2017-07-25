@@ -1,0 +1,108 @@
+package com.digitalchina.web.common.share.action;
+
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * 类型描述：<br/>
+ * 收藏记录Action
+ * 
+ * @author admin
+ */
+@RequestMapping("/general")
+@RestController
+public class ShareAction {
+/*
+	@Autowired
+	private CollectRecordManager manager;
+
+	*//**
+	 * 方法描述：<br/>
+	 * 添加收藏
+	 * 
+	 * @author admin
+	 *//*
+	@RequestMapping(method = RequestMethod.POST)
+	public ResponseResultVo save(
+			@JsonModelAttribute @Validated({ SaveGroup.class }) ShareRecordVo collectRecord,
+			BindingResult error) {
+		if (error.hasErrors()) {
+			return ResponseResultVo.failure().setMsg(error);
+		}
+
+		if (StringUtils.isBlank(collectRecord.getSubject().getId())) {
+			return ResponseResultVo.failure();
+		}
+
+		manager.doSave(collectRecord);
+
+		return ResponseResultVo.success();
+
+	}
+
+	*//**
+	 * 方法描述：<br/>
+	 * 删除收藏
+	 * 
+	 * @author admin
+	 *//*
+	@RequestMapping(method = RequestMethod.DELETE)
+	public ResponseResultVo remove(JsonModelAttributeMap map) {
+
+		String collectionId = map.getString("collectionId");
+		String subjectId = map.getString("subjectId");
+		Integer type = map.getInteger("type", 0);
+		String collecterId = map.getString("collecterId", "0");
+
+		if (StringUtils.isBlank(collectionId) && StringUtils.isBlank(subjectId)) {
+			return ResponseResultVo.failure();
+		}
+
+		if (manager.doRemove(collectionId, subjectId, type, collecterId)) {
+			return ResponseResultVo.success();
+		} else {
+			return ResponseResultVo.failure();
+		}
+
+	}
+
+	*//**
+	 * 方法描述：<br/>
+	 * 查询
+	 * 
+	 * @createTime 2016年8月16日
+	 * @author admin
+	 *
+	 * @param map
+	 * @return
+	 *//*
+	@RequestMapping(method = RequestMethod.GET)
+	public ResponseResultVo find(JsonModelAttributeMap map) {
+
+		String collecterId = map.getString("collecterId");
+		String keyword = map.getString("keyword");
+		
+		String subjectId = map.getString("subjectId");
+		Integer type = map.getInteger("type");
+		
+		Integer requestPage = map.getInteger("requestPage");
+		Integer pageSize = map.getInteger("pageSize");
+		boolean orderByCollectionTimeInASC = map.getBoolean("asc", false);
+		
+		Object result = null;
+		if (StringUtils.isNotBlank(collecterId)) {
+			
+			result = manager.findVosByCollecter(collecterId, type, keyword, requestPage, pageSize, orderByCollectionTimeInASC);
+			
+		} else if (StringUtils.isNotBlank(subjectId) && type != null) {
+			
+			result = manager.findVosBySubject(subjectId, type, requestPage, pageSize, orderByCollectionTimeInASC);
+			
+		} else {
+			return ResponseResultVo.failure();
+		}
+
+		return ResponseResultVo.success().setData(result);
+
+	}*/
+}

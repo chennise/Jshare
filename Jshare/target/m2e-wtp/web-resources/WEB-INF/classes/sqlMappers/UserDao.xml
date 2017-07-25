@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.digitalchina.web.common.user.dao.UserDao">
+
+	<resultMap id="BaseResultMap" type="user">
+		<id column="id" property="id" />
+		<result column="nickname" property="nickname" />
+		<result column="password" property="password" />
+		<result column="phone" property="phone" />
+		<result column="register_time" property="registerTime" />
+		<result column="available" property="available" />
+		<result column="sex" property="sex" />
+		<result column="image_url" property="imageUrl" />
+	</resultMap>
+
+	<sql id="Base_Column_List">
+		id,nickname,password,phone,sex,image_url
+	</sql>
+
+	<insert id="insertVo">
+		insert into 
+		user(id,phone,nickname,password,register_time,available,sex,image_url)
+		values (
+		#{id},
+		#{phone},
+		#{nickname},
+		#{password},
+		#{registerTime},
+		#{available},
+		#{sex},
+		#{imageUrl}
+		)
+	</insert>
+
+	<select id="selectVo" resultMap="BaseResultMap">
+		select
+		<include refid="Base_Column_List" />
+		from user
+		where id=#{id} and available=1
+	</select>
+
+	<select id="selectVoByPhone" resultMap="BaseResultMap">
+		select
+		<include refid="Base_Column_List" />
+		from user
+		where phone=#{phone} and available=1
+	</select>
+
+	<update id="updateVo">
+		update user
+		<set>
+			<if test="nickname!=null">
+				nickname=#{nickname},
+			</if>
+			<if test="password!=null">
+				password=#{password},
+			</if>
+			<if test="available!=null">
+				available=#{available},
+			</if>
+			<if test="sex!=null">
+				sex=#{sex},
+			</if>
+			<if test="imageUrl!=null">
+				image_url=#{imageUrl}
+			</if>
+		</set>
+		where id=#{id}
+	</update>
+
+</mapper>

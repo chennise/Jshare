@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xmlns:p="http://www.springframework.org/schema/p" xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="
+		http://www.springframework.org/schema/beans 
+		http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+		http://www.springframework.org/schema/mvc 
+		http://www.springframework.org/schema/mvc/spring-mvc-4.0.xsd
+		http://www.springframework.org/schema/context 
+		http://www.springframework.org/schema/context/spring-context-4.0.xsd">
+	
+	<!-- 扫描 -->
+	<context:component-scan base-package="com.digitalchina.web.common" use-default-filters="false">
+		<context:include-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+	</context:component-scan>
+	
+	<!-- 消息管理  -->
+	<bean id="messageSource"
+		class="org.springframework.context.support.ReloadableResourceBundleMessageSource">
+		<property name="basenames">
+			<list>
+				<value>classpath:jsr303.errors</value>
+			</list>
+		</property>
+		<property name="defaultEncoding" value="UTF-8" />
+		<property name="cacheSeconds" value="0" />
+	</bean>
+	
+	<!-- 上传管理 -->
+	<bean id="multipartResolver" class="org.springframework.web.multipart.commons.CommonsMultipartResolver"
+		p:defaultEncoding="UTF-8" p:maxUploadSize="10485760" />
+	
+	<!-- 静态资源管理 -->
+	<mvc:default-servlet-handler /> 
+	
+	<!-- 动态资源管理-->
+	<bean id="viewResolver"
+		class="org.springframework.web.servlet.view.InternalResourceViewResolver"
+		p:prefix="/"
+		p:suffix=".jsp" 
+		p:viewClass="org.springframework.web.servlet.view.JstlView"/>
+	
+	<!-- 异常管理 ，一旦设置了全局的默认错误显示页，那么任何错误都会去到这个页面-->
+	<bean name="handlerExceptionResolver" class="com.digitalchina.web.common.spring.web.servlet.handler.MappingExceptionResolver" 
+		p:defaultErrorView="/error.jsp"
+		p:exceptionAttribute="error">
+		<property name="exceptionMappings">
+			<map>
+				<entry key="org.springframework.web.bind.ServletRequestBindingException">
+					<value>{"httpCode":404, "statusCode":"999999", "msg":"接口参数异常"}</value>
+				</entry>
+				<entry key="com.digitalchina.web.common.user.api.exception.UserNotFoundException">
+					<value>{"httpCode":404, "statusCode":"444444", "msg":"用户不存在"}</value>
+				</entry>
+				<entry key="com.digitalchina.web.common.user.api.exception.UserWithoutLoginException">
+					<value>{"httpCode":404, "statusCode":"444444", "msg":"用户未登录"}</value>
+				</entry>
+				<entry key="java.lang.RuntimeException">
+					<value>{"httpCode":404, "statusCode":"999999", "msg":"系统繁忙，请稍后重试"}</value>
+				</entry>
+				<entry key="java.lang.Exception">
+					<value>{"httpCode":404, "statusCode":"999999", "msg":"系统繁忙，请稍后重试"}</value>
+				</entry>
+				<entry key="java.lang.Throwable">
+					<value>{"httpCode":404, "statusCode":"999999", "msg":"系统繁忙，请稍后重试"}</value>
+				</entry>
+			</map>
+		</property>
+	</bean>
+	
+	<!-- JSR303校验 -->
+	<bean id="jsr303Validator"
+		class="org.springframework.validation.beanvalidation.LocalValidatorFactoryBean">
+		<property name="providerClass" value="org.hibernate.validator.HibernateValidator" />
+		<property name="validationMessageSource" ref="messageSource" />
+	</bean>
+	<bean class="org.springframework.validation.beanvalidation.MethodValidationPostProcessor"/>
+	
+	<!-- SpringMVC请求映射，拦截器，请求参数转化，响应参数转化  -->
+	<mvc:interceptors>
+		<bean class="com.digitalchina.web.common.user.spring.SSOOneAuthorizationInterceptor"/>
+	</mvc:interceptors>
+	<mvc:annotation-driven validator="jsr303Validator">
+		<mvc:argument-resolvers>
+			<bean class="com.digitalchina.web.common.spring.http.converter.JsonModelAttributeMethodArgumentResolver"/> <!-- JsonModelAttribute 参数转化 -->
+			<bean class="com.digitalchina.web.common.user.spring.SSOUserMethodArgumentResolver"/> <!-- SSOUser 参数转化 -->
+		</mvc:argument-resolvers>
+		<mvc:message-converters>
+			<bean class="org.springframework.http.converter.StringHttpMessageConverter"> <!-- HTML -->
+				<property name="supportedMediaTypes">
+				<list>
+				<value>text/plain;charset=UTF-8</value>
+				</list>
+				</property>
+			</bean>
+			<bean class="org.springframework.http.converter.ByteArrayHttpMessageConverter" /> <!-- 下载流 -->
+			<bean class="org.springframework.http.converter.BufferedImageHttpMessageConverter" /> <!-- 图片流 -->
+			<bean class="org.springframework.http.converter.json.MappingJackson2HttpMessageConverter"> <!-- JSON -->
+				<property name="objectMapper">
+					<bean class="com.digitalchina.web.common.spring.http.converter.ObjectMapper2MappingJackson"/>
+				</property>
+			</bean>
+			<bean class="org.springframework.http.converter.xml.XmlAwareFormHttpMessageConverter" />
+		</mvc:message-converters>
+	</mvc:annotation-driven>
+	
+	<bean
+		class="com.digitalchina.cptl.remote.controller.CspRemoteServiceController">
+		<property name="interceptors">
+			<array>
+				<bean class="com.digitalchina.web.common.hack.dfh.spring.MessageValidationInterceptor"/>
+				<bean class="com.digitalchina.web.common.user.hack.dfh.spring.YantianUserCenterInterceptor" 
+					p:usercenterApiUrl="#{configproperties['usercenter.api.url']}"/>
+			</array>
+		</property>
+	</bean>
+</beans>

@@ -1,0 +1,176 @@
+package com.digitalchina.web.common.share.action;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.dom4j.Document;
+import org.dom4j.DocumentException;
+import org.dom4j.Element;
+import org.dom4j.io.SAXReader;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+
+@Controller
+@RequestMapping("/weixin")
+public class WeiXinCallBackAction {
+
+	/**
+	 * 微信验证回调
+	 * @param request
+	 * @param response
+	 * 
+	 * 
+	 * <xml><ToUserName><![CDATA[gh_2a5540516edb]]></ToUserName>
+		<FromUserName><![CDATA[odwP2jt6aTBu_Dl1ypoUJ8pN9UOs]]></FromUserName>
+		<CreateTime>1425633941</CreateTime>
+		<MsgType><![CDATA[event]]></MsgType>
+		<Event><![CDATA[SCAN]]></Event>
+		<EventKey><![CDATA[0]]></EventKey>
+		<Ticket><![CDATA[gQGK8DoAAAAAAAAAASxodHRwOi8vd2VpeGluLnFxLmNvbS9xL2RIVlBsRVBsdEhITk9jQzRaMXV6AAIEgXL5VAMECAcAAA==]]></Ticket>
+		</xml>
+	 */
+	@RequestMapping(value="/callback",method={RequestMethod.GET,RequestMethod.POST} )
+	public void init(@RequestBody(required=false) String body,HttpServletRequest request,HttpServletResponse response){
+		
+		System.out.println(body.toString());
+		System.out.println("================================微信URL回调测试=========================");
+		SAXReader saxReader = new SAXReader();
+		Document document;
+		try {
+			try {
+				document = saxReader.read(new ByteArrayInputStream(body.toString().getBytes("UTF-8")));
+				Element rootElt = document.getRootElement();
+				System.out.println("FromUserName==="+rootElt.elementText("FromUserName"));
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+			}
+			
+		} catch (DocumentException e) {
+			e.printStackTrace();
+		}
+		
+		String signature = request.getParameter("signature");
+		String timestamp = request.getParameter("timestamp");
+		String nonce = request.getParameter("nonce");
+		String echostr = request.getParameter("echostr");
+		
+		String token = "dmx";
+		
+		PrintWriter out;
+		try {
+			out = response.getWriter();
+			out.println(echostr);
+			out.close();
+			response.flushBuffer();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+	}
+	
+	/*@RequestMapping(value = "/weixinAttention", method = RequestMethod.POST)
+	@ResponseBody
+	public Object init(@RequestBody String body, HttpServletRequest request,HttpServletResponse response) {
+		try{
+			
+			KeyStore keyStore = KeyStore.getInstance("PKCS12");
+			FileInputStream instream = new FileInputStream(new File(
+					CustomizedPropertyPlaceholderConfigurer.getContextProperty("wx.cert").toString()));
+			try {
+				keyStore.load(instream, "见邮件".toCharArray());
+			}finally {
+				instream.close();
+			}
+
+			// Trust own CA and all self-signed certs
+			SSLContext sslcontext = SSLContexts.custom().loadKeyMaterial(keyStore,
+					"<span style="font-family: Arial, Helvetica, sans-serif;">见邮件</span><span style="font-family: Arial, Helvetica, sans-serif;">".toCharArray()).build();</span>
+			// Allow TLSv1 protocol only
+			SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(
+					sslcontext, new String[] { "TLSv1" }, null,
+					SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
+			CloseableHttpClient httpclient = HttpClients.custom()
+					.setSSLSocketFactory(sslsf).build();
+			// HttpGet httpget = new
+			// HttpGet("https://api.mch.weixin.qq.com/secapi/pay/refund");
+			JSONObject bodyXml = JSONObject.fromObject(body);
+			HttpPost httppost = new HttpPost("https://api.weixin.qq.com/cgi-bin/qrcode/create?access_token="+bodyXml.get("accessToken"));
+			
+			Map<String,Map<String,Integer>> sceneMap = new HashMap<String,Map<String,Integer>>();
+			Map<String,Integer> sceneIdMap = new HashMap<String, Integer>();
+			sceneIdMap.put("scene_id", (Integer) bodyXml.get("sceneId"));
+			sceneMap.put("scene", sceneIdMap);
+			
+			JSONObject attentionXml = new JSONObject();
+			attentionXml.put("expire_seconds", Integer.valueOf(bodyXml.get("expireSeconds").toString()));
+			attentionXml.put("action_name", weixinActionName.ACTION_NAME_TEMPORARY);
+			attentionXml.put("action_info", sceneMap);
+			System.out.println("atten====="+attentionXml.toString());
+			try {
+
+				StringEntity se = new StringEntity(attentionXml.toString());
+				
+				httppost.setEntity(se);
+
+				System.out.println("executing request" + httppost.getRequestLine());
+
+				CloseableHttpResponse responseEntry = httpclient.execute(httppost);
+				try {
+					HttpEntity entity = responseEntry.getEntity();
+
+					System.out.println("----------------------------------------");
+					System.out.println(responseEntry.getStatusLine());
+					if (entity != null) {
+						System.out.println("Response content length: "
+								+ entity.getContentLength());
+						JSONObject result = null ;
+						System.out.println("Response content length: "
+								+ entity.getContentLength());
+					BufferedReader bufferedReader = new BufferedReader(
+								new InputStreamReader(entity.getContent()));
+						String text;
+						while ((text = bufferedReader.readLine()) != null) {
+							System.out.println("text======="+text);
+							result = JSONObject.fromObject(text);
+						}
+						//此url位生成临时二维码url,扫码后可进行公众账号关注
+						String resultUrl = result.getString("url");
+						//						JSONObject result = new JSONObject();
+						if(!StringUtils.isEmpty(resultUrl)){
+							result.put("attentionUrl", resultUrl);
+							result.put("expireSeconds", result.getString("expire_seconds"));
+						}else{
+							result.put("status", "error");
+							result.put("errcode", result.getString("errcode"));
+							result.put("errmsg", result.getString("errmsg"));
+						}
+						
+						return result;
+
+					}
+					EntityUtils.consume(entity);
+				}
+				finally {
+					responseEntry.close();
+				}
+			}
+			finally {
+				httpclient.close();
+			}
+			return null;		
+		}catch(Exception e){
+			e.printStackTrace();
+			JSONObject result = new JSONObject();
+			result.put("status","error");
+			result.put("msg",e.getMessage());
+			return result;
+		}
+	}*/
+}

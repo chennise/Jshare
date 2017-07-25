@@ -1,0 +1,52 @@
+## mysql
+mysql.driverClass = com.mysql.jdbc.Driver
+mysql.url=jdbc:mysql://121.42.170.171:3306/share?useUnicode=true&amp;characterEncoding=utf8
+mysql.username=root
+mysql.password=root
+mysql.connectionInitalSize=2
+mysql.connectionMinIdleSize=2
+mysql.connectionMaxActiveSize=4
+
+## mongodb
+mongo.url=mongodb://root:jkxtyc,1@127.0.0.1:27017/share
+
+## memcached
+memcached.connectionPoolSize=10
+memcached.port=11211
+memcached.url.server=121.42.165.201
+
+## system
+siteId=440308
+senderId=ec39226754c408606410a4b11539af50
+remoteCall_version=2.0
+app_id=BAS-440308-0001
+app_key=bcf9b17ad9ba9425355f7882d8fd5ba6d9ba9425355f7882
+app_id_ios=IOS-440308-0001
+app_key_ios=e6dfa275279a22895279656804763aa8279a228952796568
+app_id_adr=ARD-440308-0001
+app_key_adr=67e700ccb3e7d3b1ce653964e65499a3b3e7d3b1ce653964
+app_id_adr=BAS-440308-0001
+app_key_adr=bcf9b17ad9ba9425355f7882d8fd5ba6d9ba9425355f7882
+
+## system
+token.aes.key=dca5f91b5757047df8effcfc8ceacd085028fe44896c1f32f67d2be44bbbf16e
+sms.aes.key=e4d8782d462c532e79a9f88bde539a11
+
+#sso cookie
+sso.cookie.domain=.scity.cn
+sso.cookie.path=/
+sso.cookie.https=false
+
+#qiniu
+image.ak=Ns1NGk9V9QRmfJGUL1JPUcb0ELzEEHxjOb9sSZa1
+image.sk=Z6nEpZ1eiA2m5-88NIPCTIoO6PkxXhVc2m7pC73D
+image.bucketname=jshare
+image.url=http://of4r66da3.bkt.clouddn.com/
+
+#sms
+sms.url=http://222.73.117.158/msg/HttpBatchSendSM
+sms.account=yanqiuping_lh
+sms.pswd=Tch4567899
+
+#other
+usercenter.api.url=http://121.42.170.171/user/info

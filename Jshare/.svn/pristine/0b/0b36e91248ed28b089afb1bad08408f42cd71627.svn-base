@@ -1,0 +1,258 @@
+package com.digitalchina.web.common.share.service;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.digitalchina.frame.message.MessageObject;
+import com.digitalchina.frame.message.ServiceContext;
+import com.digitalchina.frame.security.AuthUser;
+import com.digitalchina.web.common.hack.dfh.AbstractCommonService;
+import com.digitalchina.web.common.share.bussiness.CircleManager;
+import com.digitalchina.web.common.share.bussiness.ShareRecordManager;
+import com.digitalchina.web.common.share.bussiness.UserBindManager;
+import com.digitalchina.web.common.share.vo.CircleVo;
+import com.digitalchina.web.common.share.vo.UserVo;
+import com.digitalchina.web.common.util.config.PropertiesHandler;
+import com.digitalchina.web.common.util.lang.NumberHandler;
+import com.digitalchina.web.common.util.lang.ObjectHandler;
+
+/**
+ * 类型描述：<br/>
+ * 碳闲置Action
+ * 
+ * @author LJn
+ */
+@RequestMapping("/share")
+@RestController
+public class ShareService extends AbstractCommonService{
+
+	private final static Logger LOG = LogManager.getLogger(ShareService.class);
+
+	private final static String IMAGE_TYPE_REGEX = "^(jpg|png|gif|jpeg)$";
+	private static final String IMAGE_URL = PropertiesHandler.getProperty("image.url");
+	
+	@Autowired
+	private CircleManager circleManager;
+	@Autowired
+	private ShareRecordManager recordManager;
+	@Autowired
+	private UserBindManager userBindManager;
+
+	
+	/**
+	 * 方法描述：<br/>
+	 * 增加圈子
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param serviceContext
+	 */
+	public void saveCircle(final ServiceContext serviceContext) {
+
+		try {
+			MessageObject msgObj = serviceContext.getRequestData();
+			
+			String name = ObjectHandler.toString(getValue(msgObj, "name"));
+			Integer type = NumberHandler.toInteger(getValue(msgObj, "type"));
+			
+			if (StringUtils.isBlank(name) || type == null) {
+				setFailResult(serviceContext);
+				return;
+			}
+			
+			AuthUser currentUser = getAuthUser(serviceContext); // 当前用户信息
+			String publisherId = currentUser.getUserid().toString();
+			String publisherName = currentUser.getLogin();
+			String publisherNickname = currentUser.getNickname();
+
+			String circleId = new ObjectId().toHexString();
+			CircleVo circle = CircleVo.createById(circleId);
+			UserVo publisher = UserVo.createById(publisherId);
+			publisher.setName(publisherName);
+			publisher.setNickname(publisherNickname);
+			circle.setName(name);
+			circle.setPublisher(publisher);
+			
+			circleManager.doSave(circle);
+			
+			UserVo user = userBindManager.findVo(publisherId);
+			if(user == null){
+				user = UserVo.createById(publisherId);
+				user.getCircles().add(circle);
+				userBindManager.doModify(user);
+			} else {
+				user.getCircles().add(circle);
+				userBindManager.doSave(user);
+			}
+			
+			setSuccessResult(serviceContext);
+		} catch (Exception e) {
+			LOG.error(e);
+			setFailResult(serviceContext);
+		}
+
+	}
+	
+	/**
+	 * 方法描述：<br/>
+	 * 用户加入圈子
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param map
+	 * @return 
+	 */
+	/*@RequestMapping(value = "/circle/bind", method = RequestMethod.GET)
+	public ResponseResultVo bindcircle(JsonModelAttributeMap map) {
+
+		String circleId = map.getString("circleId");
+		String userId = map.getString("userId");
+		
+		if (StringUtils.isBlank(circleId) || StringUtils.isBlank(userId)) {
+			return ResponseResultVo.failure();
+		}
+		
+		CircleVo circle = circleManager.findVo(circleId);
+		if(circle == null){
+			return ResponseResultVo.failure();
+		}
+		
+		UserVo user = userBindManager.findVo(userId);
+		if(user == null){
+			user = UserVo.createById(userId);
+			user.getCircles().add(circle);
+			userBindManager.doModify(user);
+		} else {
+			user.getCircles().add(circle);
+			userBindManager.doSave(user);
+		}
+		
+		return ResponseResultVo.success();
+	}
+
+	*//**
+	 * 方法描述：<br/>
+	 * 根据用户查找圈子
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param map
+	 * @return 
+	 *//*
+	@RequestMapping(value = "/circle", method = RequestMethod.GET)
+	public ResponseResultVo findcircle(JsonModelAttributeMap map) {
+
+		String id = map.getString("id");
+		
+		if (StringUtils.isBlank(id)) {
+			return ResponseResultVo.failure();
+		}
+
+		UserVo result = userBindManager.findVo(id);
+
+		return ResponseResultVo.success().setData(result);
+	}
+	
+	*//**
+	 * 方法描述：<br/>
+	 * 增加闲置品
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param meta
+	 * @param error
+	 * @return
+	 *//*
+	@RequestMapping(value = "/share", method = RequestMethod.POST)
+	public ResponseResultVo saveShare(@JsonModelAttribute @Validated({ SaveGroup.class }) ShareRecordVo shareRecord,
+		 @RequestParam("avatar") MultipartFile picture, BindingResult error) {
+		
+		if (error.hasErrors()) {
+			return ResponseResultVo.failure().setMsg(error);
+		}
+		
+		if(picture.isEmpty()){
+			 return ResponseResultVo.failure().setMsg("图像数据不能为空或图片类型未设置");
+		 } else {
+			 String imgType = FilenameUtils.getExtension(picture.getOriginalFilename());
+			 if (imgType != null && imgType.toLowerCase().matches(IMAGE_TYPE_REGEX)) {
+				try {
+					//密钥配置
+					Auth auth = Auth.create(Constants.IMAGE_AK, Constants.IMAGE_SK);
+					
+					//创建上传对象
+					UploadManager uploadManager = new UploadManager();
+					String key = "share/" + picture.getOriginalFilename();
+					String imageUrl = IMAGE_URL + key;
+					File targetFile = new File(picture.getOriginalFilename());  
+					if(!targetFile.exists()){ targetFile.mkdirs(); }  
+					picture.transferTo(targetFile);
+					String token = auth.uploadToken(Constants.IMAGE_BUCKETNAME);
+					
+					Response result = uploadManager.put(targetFile, key, token);
+					
+					if (result.isOK()) {
+						shareRecord.setImageUrl(imageUrl);
+						recordManager.doSave(shareRecord);
+						
+						return ResponseResultVo.success().setData(imageUrl);
+					}
+
+					if (!result.isOK()) {
+						return ResponseResultVo.failure().setMsg("图片上传失败，" + result.bodyString());
+					}
+					
+				} catch (IOException e) {
+					return ResponseResultVo.failure().setMsg("图像数据异常");
+				}
+			 } else {
+				 return ResponseResultVo.failure().setMsg("图片类型不可识别");
+			 }
+		 }
+		return ResponseResultVo.failure();
+	}
+	
+	
+	*//**
+	 * 方法描述：<br/>
+	 * 查询闲置品记录
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param map
+	 * @return 
+	 *//*
+	@RequestMapping(value = "/share", method = RequestMethod.GET)
+	public ResponseResultVo findShare(JsonModelAttributeMap map) {
+
+		String circleId = map.getString("circleId");
+		Integer type = map.getInteger("type");
+		String keyword = map.getString("keyword");
+		
+		Integer requestPage = map.getInteger("requestPage", 1);
+		Integer pageSize = map.getInteger("pageSize", 20);
+		boolean orderByPublicTimeInASC = map.getBoolean("asc", false);
+		
+		if (StringUtils.isBlank(circleId) || type == null) {
+			return ResponseResultVo.failure();
+		} 
+
+		ResultPageVo<?> result = recordManager
+				.findVos(circleId, type, keyword, requestPage, pageSize, orderByPublicTimeInASC);
+
+		return ResponseResultVo.success().setData(result);
+		
+	}*/
+	
+	
+}

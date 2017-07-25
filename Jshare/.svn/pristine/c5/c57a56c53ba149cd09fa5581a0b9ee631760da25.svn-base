@@ -1,0 +1,228 @@
+package com.digitalchina.web.common.user.action;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.UUID;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.Base64Utils;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.digitalchina.web.common.action.ResponseResultVo;
+import com.digitalchina.web.common.hack.dfh.PhotoHandler;
+import com.digitalchina.web.common.hack.dfh.PhotoHandler.Result;
+import com.digitalchina.web.common.spring.http.annotation.JsonModelAttribute;
+import com.digitalchina.web.common.spring.http.model.JsonModelAttributeMap;
+import com.digitalchina.web.common.user.api.Constants;
+import com.digitalchina.web.common.user.api.IUserManager;
+import com.digitalchina.web.common.user.business.UserToken;
+import com.digitalchina.web.common.user.spring.SSOUser;
+import com.digitalchina.web.common.user.vo.UserVo;
+import com.qiniu.common.QiniuException;
+import com.qiniu.http.Response;
+import com.qiniu.storage.UploadManager;
+import com.qiniu.util.Auth;
+
+/**
+ * 类型描述：<br/>
+ * 我的Action
+ * 
+ * @createTime 2016年6月25日
+ * @author maiwj
+ * 
+ */
+@RequestMapping("/user/mine")
+@RestController
+public class MineAction {
+
+	private final static Logger LOG = LogManager.getLogger(MineAction.class);
+	
+	private final static String IMAGE_TYPE_REGEX = "^(jpg|png|gif|jpeg)$";
+
+	@Autowired
+	private IUserManager userManager;
+
+
+	/**
+	 * 方法描述：<br/>
+	 * 获取用户信息
+	 * 
+	 * @createTime 2016年6月25日
+	 * @author maiwj
+	 *
+	 * @param token
+	 * @param map
+	 * @return
+	 */
+	@RequestMapping(method = RequestMethod.GET)
+	public ResponseResultVo info(SSOUser me) {
+		return ResponseResultVo.success().setData(me);
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 修改用户信息
+	 * 
+	 * @createTime 2016年6月25日
+	 * @author maiwj
+	 *
+	 * @param me
+	 * @param user
+	 * @param error
+	 * @return
+	 */
+	@RequestMapping(method = { RequestMethod.PUT, RequestMethod.POST })
+	public ResponseResultVo modify(SSOUser me, @JsonModelAttribute UserVo user) {
+
+		String nickname = user.getNickname();
+		Integer sex = user.getSex();
+		Long phone = user.getPhone();
+		String password = user.getPassword();
+
+		boolean finalModify = false;
+
+		if (StringUtils.isNotBlank(nickname)) {
+			me.setNickname(nickname);
+			finalModify = true;
+		}
+		if (sex != null) {
+			me.setSex(sex);
+			finalModify = true;
+		}
+		if (phone != null) {
+			UserVo userPhone = userManager.findOneByPhone(phone);
+			if (userPhone != null) {
+				return ResponseResultVo.failure("999001").setMsg("新手机号已经被占用");
+			}
+			me.setPhone(phone);
+			finalModify = true;
+		}
+		if (StringUtils.isNotBlank(password)) {
+			me.setPassword(password);
+			finalModify = true;
+		}
+
+		if (finalModify) {
+			user.setId(me.getId()); // 设入Id进行设置
+			userManager.doModify(user);
+		}
+		return ResponseResultVo.success();
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 用户头像操作，更新
+	 * 
+	 * @createTime 2016年6月25日
+	 * @author maiwj
+	 *
+	 * @param meIds
+	 * @param map
+	 * @return
+	 * @throws QiniuException 
+	 */
+	@RequestMapping(value = "/avatar", method = { RequestMethod.PUT, RequestMethod.POST })
+	public ResponseResultVo avatar(SSOUser user, JsonModelAttributeMap map) throws QiniuException {
+		String imgStr = map.getString("imgStr");
+		if (StringUtils.isBlank(imgStr)) {
+			return ResponseResultVo.failure().setMsg("图像数据不能为空或图片类型未设置");
+		}
+		
+		//密钥配置
+		Auth auth = Auth.create(Constants.IMAGE_AK, Constants.IMAGE_SK);
+		//创建上传对象
+		UploadManager uploadManager = new UploadManager();
+		String key = UUID.randomUUID()+".jpg";
+		String imageUrl = "http://oez1lgc5f.bkt.clouddn.com/"+key;
+		
+		Response result = uploadManager.put(imgStr, key, auth.uploadToken(Constants.IMAGE_BUCKETNAME, "user/"+key));
+		
+		if (result.isOK()) {
+			user.setImageUrl(imageUrl);
+
+			UserVo userUpdate = UserVo.createById(user.getId());
+			userUpdate.setImageUrl(imageUrl);
+			userManager.doModify(userUpdate);
+		}
+
+		if (!result.isOK()) {
+			return ResponseResultVo.failure().setMsg("用户头像上传失败，" + result.bodyString());
+		}
+		return ResponseResultVo.success().setData(imageUrl);
+	}
+	
+	/**
+	 * 方法描述：<br/>
+	 * 用户头像上传
+	 * 
+	 * @createTime 2016年8月10日
+	 * @author maiwj
+	 *
+	 * @param user
+	 * @param avatar
+	 * @return
+	 */
+	@RequestMapping(value = "/avatar/stream", method = { RequestMethod.PUT, RequestMethod.POST })
+	public ResponseResultVo avatar(SSOUser user, @RequestParam("avatar") MultipartFile avatar) {
+		
+		 if(avatar.isEmpty()){
+			 return ResponseResultVo.failure().setMsg("图像数据不能为空或图片类型未设置");
+		 } else {
+			 String imgType = FilenameUtils.getExtension(avatar.getOriginalFilename());
+			 if (imgType != null && imgType.toLowerCase().matches(IMAGE_TYPE_REGEX)) {
+				try {
+					//String imgStr = Base64Utils.encodeToString(avatar.getBytes());
+					//LOG.info("imgStr="+avatar.getBytes());
+					//密钥配置
+					Auth auth = Auth.create(Constants.IMAGE_AK, Constants.IMAGE_SK);
+					//创建上传对象
+					UploadManager uploadManager = new UploadManager();
+					String key = avatar.getOriginalFilename();
+					String imageUrl = "http://oez1lgc5f.bkt.clouddn.com/"+key;
+					File targetFile = new File(key);  
+					if(!targetFile.exists()){  
+				       targetFile.mkdirs();  
+				    }  
+					avatar.transferTo(targetFile);
+					String token = auth.uploadToken(Constants.IMAGE_BUCKETNAME);
+					LOG.info("file="+targetFile.getAbsolutePath()+":"+targetFile.length());
+					LOG.info("key="+key);
+					LOG.info("token="+token);
+					Response result = null;
+					try{
+						result = uploadManager.put(targetFile, key, token);
+					}catch(QiniuException e){
+						LOG.info(e.code()+":"+e.response.error);
+					}
+					LOG.info("result="+result.statusCode);
+					if (result.isOK()) {
+						user.setImageUrl(imageUrl);
+
+						UserVo userUpdate = UserVo.createById(user.getId());
+						userUpdate.setImageUrl(imageUrl);
+						userManager.doModify(userUpdate);
+					}
+
+					if (!result.isOK()) {
+						return ResponseResultVo.failure().setMsg("用户头像上传失败，" + result.bodyString());
+					}
+					return ResponseResultVo.success().setData(imageUrl);
+				} catch (IOException e) {
+					return ResponseResultVo.failure().setMsg("图像数据异常");
+				}
+			 } else {
+				 return ResponseResultVo.failure().setMsg("图片类型不可识别");
+			 }
+		 }
+	}
+
+}

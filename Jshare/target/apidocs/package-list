@@ -1,0 +1,9 @@
+com.digitalchina.web.common.user.action
+com.digitalchina.web.common.user.api
+com.digitalchina.web.common.user.api.exception
+com.digitalchina.web.common.user.business
+com.digitalchina.web.common.user.dao
+com.digitalchina.web.common.user.hack.dfh.spring
+com.digitalchina.web.common.user.spring
+com.digitalchina.web.common.user.vo
+com.digitalchina.web.common.user.vo.validation

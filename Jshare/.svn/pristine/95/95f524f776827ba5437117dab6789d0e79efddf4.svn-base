@@ -1,0 +1,77 @@
+package com.digitalchina.web.common.share.action;
+
+import org.apache.commons.lang.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RestController;
+import com.digitalchina.web.common.action.ResponseResultVo;
+import com.digitalchina.web.common.api.ResultPageVo;
+import com.digitalchina.web.common.share.bussiness.CircleManager;
+import com.digitalchina.web.common.share.vo.CircleVo;
+import com.digitalchina.web.common.spring.http.annotation.JsonModelAttribute;
+import com.digitalchina.web.common.spring.http.model.JsonModelAttributeMap;
+
+/**
+ * 类型描述：<br/>
+ * 圈子记录Action
+ * 
+ * @author LJn
+ */
+@RequestMapping("/circle")
+@RestController
+public class CircleAction {
+
+	@Autowired
+	private CircleManager manager;
+
+	/**
+	 * 方法描述：<br/>
+	 * 添加圈子
+	 * 
+	 * @author LJn
+	 */
+	@RequestMapping(method = RequestMethod.POST)
+	public ResponseResultVo save(
+			@JsonModelAttribute CircleVo circleVo,BindingResult error) {
+		if (error.hasErrors()) {
+			return ResponseResultVo.failure().setMsg(error);
+		}
+
+		manager.doSave(circleVo);
+
+		return ResponseResultVo.success();
+
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 查询
+	 * 
+	 * @createTime 2016年8月16日
+	 * @author admin
+	 *
+	 * @param map
+	 * @return
+	 */
+	@RequestMapping(method = RequestMethod.GET)
+	public ResponseResultVo find(JsonModelAttributeMap map) {
+
+		String id = map.getString("id");
+		
+		if (StringUtils.isNotBlank(id)) {
+			CircleVo result = manager.findVo(id);
+
+			return ResponseResultVo.success().setData(result);
+		} else {
+			Integer requestPage = map.getInteger("requestPage", 1);
+			Integer pageSize = map.getInteger("pageSize", 20);
+
+			ResultPageVo<CircleVo> result = manager.findVos(requestPage, pageSize, map.getMap());
+
+			return ResponseResultVo.success().setData(result);
+		}
+
+	}
+}

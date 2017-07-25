@@ -1,0 +1,308 @@
+package com.digitalchina.web.common.user.action;
+
+import java.util.HashMap;
+import java.util.Map;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import org.apache.commons.lang.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import com.digitalchina.web.common.Responses;
+import com.digitalchina.web.common.action.ResponseResultVo;
+import com.digitalchina.web.common.spring.http.annotation.JsonModelAttribute;
+import com.digitalchina.web.common.user.api.Constants;
+import com.digitalchina.web.common.user.api.IUserManager;
+import com.digitalchina.web.common.user.api.IUserSocialManager;
+import com.digitalchina.web.common.user.business.UserCache;
+import com.digitalchina.web.common.user.business.UserToken;
+import com.digitalchina.web.common.user.business.UserVerifyCode;
+import com.digitalchina.web.common.user.spring.SSOConstants;
+import com.digitalchina.web.common.user.spring.SSOUser;
+import com.digitalchina.web.common.user.vo.UserVo;
+import com.digitalchina.web.common.user.vo.validation.LoginGroup;
+import com.digitalchina.web.common.user.vo.validation.PasswordModifyGroup;
+import com.digitalchina.web.common.user.vo.validation.RegisteGroup;
+
+/**
+ * 类型描述：<br/>
+ * 用户Action
+ * 
+ * @createTime 2016年6月25日
+ * @author maiwj
+ *
+ */
+@RequestMapping("/user")
+@RestController
+public class UserAction {
+
+	@Autowired
+	private IUserManager userManager;
+	@Autowired
+	private IUserSocialManager userSocialManager;
+	@Autowired
+	private UserVerifyCode userVerifyCode;
+	@Autowired
+	private UserCache userCache;
+	@Autowired
+	private UserToken userToken;
+
+	/**
+	 * 方法描述：<br/>
+	 * 从Cookie中获取令牌
+	 * 
+	 * @createTime 2016年7月1日
+	 * @author maiwj
+	 *
+	 * @param servletRequest
+	 * @return
+	 */
+	private String getTokenFromCookie(HttpServletRequest servletRequest) {
+		String userLoginedToken = null;
+
+		Cookie[] cookies = servletRequest.getCookies();
+		if (cookies != null) {
+			for (Cookie cookie : cookies) {
+				if (StringUtils.equals(cookie.getName(), SSOConstants.USER_TOKEN_COOKIE_NAME)) {
+					userLoginedToken = cookie.getValue();
+					break;
+				}
+			}
+		}
+		return userLoginedToken;
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 获取个人信息
+	 * 
+	 * @createTime 2016年7月4日
+	 * @author maiwj
+	 *
+	 * @param user
+	 * @return
+	 */
+	@RequestMapping(value = "/info", method = RequestMethod.GET)
+	public ResponseResultVo info(SSOUser user) {
+		return ResponseResultVo.success().setData(user);
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 登录操作
+	 * 
+	 * @createTime 2016年6月25日
+	 * @author maiwj
+	 *
+	 * @param map
+	 * @param request
+	 * @return
+	 */
+	@RequestMapping(value = "/login", method = { RequestMethod.PUT, RequestMethod.POST, RequestMethod.GET })
+	public ResponseResultVo login(@JsonModelAttribute @Validated({ LoginGroup.class }) UserVo user, BindingResult error,
+			HttpServletResponse response) {
+		if (error.hasErrors()) {
+			return ResponseResultVo.failure().setMsg(error);
+		}
+		
+		UserVo userLogined = null;
+		
+		if (StringUtils.equals(user.getLoginType(), "message_verifyCode")) { // 短信登录
+			if (userVerifyCode.check(user.getPhone(), user.getPassword(), Constants.BUSINESS_TYPE_MESSAGE_LOGIN)) {
+				userLogined = userManager.findOneByPhone(user.getPhone());
+				if (userLogined == null) {
+					userLogined = UserVo.create(user.getPhone(), user.getPassword());
+					userManager.doRegiste(userLogined);
+				}
+			} else {
+				return ResponseResultVo.failure().setMsg("短信验证码错误或失效");
+			}
+		} else { // 密码登录
+			userLogined = userManager.login(user.getPhone(), user.getPassword()); // 密码经过加密
+		}
+		
+		
+		if (userLogined != null) {
+			userLogined = UserVo.clean(userLogined);
+
+			Long userId = userLogined.getId();
+			String userLoginedToken = userToken.create(userId);
+			userCache.set(userId, userLogined);
+
+			Cookie userLoginedTokenCookie = new Cookie(SSOConstants.USER_TOKEN_COOKIE_NAME, userLoginedToken);
+			String userLoginedTokenCookieDomain = SSOConstants.USER_TOKEN_COOKIE_DOMAIN;
+			String userLoginedTokenCookiePath = SSOConstants.USER_TOKEN_COOKIE_PATH;
+			if (StringUtils.isNotBlank(userLoginedTokenCookieDomain)) {
+				userLoginedTokenCookie.setDomain(userLoginedTokenCookieDomain);
+			}
+			if (StringUtils.isNotBlank(userLoginedTokenCookiePath)) {
+				userLoginedTokenCookie.setPath(userLoginedTokenCookiePath);
+			}
+			userLoginedTokenCookie.setSecure(SSOConstants.USER_TOKEN_COOKIE_HTTPS);
+			userLoginedTokenCookie.setHttpOnly(true);
+
+			response.addCookie(userLoginedTokenCookie);
+
+			Map<String, Object> attach = new HashMap<String, Object>(1);
+			attach.put(SSOConstants.USER_TOKEN_COOKIE_NAME, userLoginedToken);
+
+			return ResponseResultVo.success().setData(userLogined).setAttach(attach);
+		}
+
+		return ResponseResultVo.failure().setMsg("您输入的账号或密码有误");
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 登出操作
+	 * 
+	 * @createTime 2016年6月25日
+	 * @author maiwj
+	 *
+	 * @param token
+	 * @param response
+	 * @return
+	 */
+	@RequestMapping(value = "/logout", method = { RequestMethod.DELETE, RequestMethod.GET })
+	public ResponseResultVo logout(HttpServletRequest request, HttpServletResponse response) {
+		String userLoginedToken = request.getParameter(SSOConstants.USER_TOKEN_COOKIE_NAME);
+		if (StringUtils.isBlank(userLoginedToken)) {
+			userLoginedToken = getTokenFromCookie(request);
+		}
+
+		if (StringUtils.isNotBlank(userLoginedToken)) {
+			userCache.del(userToken.export(userLoginedToken));
+		}
+
+		Cookie userLoginedTokenCookie = new Cookie(SSOConstants.USER_TOKEN_COOKIE_NAME, null);
+		userLoginedTokenCookie.setMaxAge(0); // 删除
+		response.addCookie(userLoginedTokenCookie);
+
+		return ResponseResultVo.success();
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 注册操作
+	 * 
+	 * @createTime 2016年6月25日
+	 * @author maiwj
+	 *
+	 * @param user
+	 * @param error
+	 * @return
+	 */
+	@RequestMapping(value = "/registe", method = RequestMethod.POST)
+	public ResponseResultVo registe(@JsonModelAttribute @Validated({ RegisteGroup.class }) UserVo user,
+			BindingResult error) {
+		if (error.hasErrors()) {
+			return ResponseResultVo.failure().setMsg(error);
+		}
+
+		if (userManager.findOneByPhone(user.getPhone()) != null) {
+			return ResponseResultVo.failure().setMsg("用户已经存在，请直接登录");
+		}
+
+		if (userManager.doRegiste(user, Constants.BUSINESS_TYPE_REGISTER)) {
+			return ResponseResultVo.success();
+		} else {
+			return ResponseResultVo.failure("999000").setMsg("短信验证码错误或失效");
+		}
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 修改密码
+	 * 
+	 * @createTime 2016年6月25日
+	 * @author maiwj
+	 *
+	 * @param map
+	 * @return
+	 */
+	@RequestMapping(value = "/password", method = { RequestMethod.PUT, RequestMethod.POST })
+	public ResponseResultVo password(@JsonModelAttribute @Validated({ PasswordModifyGroup.class }) UserVo user,
+			BindingResult error) {
+		if (error.hasErrors()) {
+			return ResponseResultVo.failure().setMsg(error);
+		}
+
+		UserVo userInDB = userManager.findOneByPhone(user.getPhone());
+		if (userInDB == null) {
+			return ResponseResultVo.failure().setMsg("用户不存在");
+		}
+
+		if (userManager.doModifyPassword(userInDB.getId(), user.getPhone(), user.getVerifyCode(), user.getPassword())) {
+			return ResponseResultVo.success().setMsg("用户密码修改成功");
+		}
+
+		return ResponseResultVo.failure("999000").setMsg("短信验证码错误或失效");
+	}
+
+	/**
+	 * 
+	 * 描述：</br>
+	 * 判断用户是否存在 一、注册时检验手机号是否存在： isExist(phone,businesstyp=01)
+	 * 手机号(用户)不存在，status为false，且响应节点data里面放入token(token=md5(phone)_businessType)
+	 * 手机号(用户)存在，status为true，且响应节点data里面不需要放入东西。 二、获取手机短信验证码时检验手机号是否存在:
+	 * isExist(phone,businesstpe=02)
+	 * 手机号(用户)不存在时，status为false，且响应节点data里面不需要放token。
+	 * 手机号(用户)存在时，status为true，且响应节点data里面放入token(token=md5(phone)_businessType)
+	 * 
+	 * 三、cache里面设置的验证码格式为： key = user_md(phone)_businessType //如
+	 * user_fsfafdiouisdfdf_03 value = phone_verifyCode //如 18011999122_430912
+	 * 
+	 * @param phone
+	 *            通过手机号判断用户是否存在
+	 * @return ResponseResultVo 如果响应节点里面有数据，则为token = md5(phone)_businessType
+	 * @author wukj
+	 */
+	@RequestMapping(value = "/phone/exist", method = RequestMethod.GET)
+	public ResponseResultVo phoneExist(@RequestParam("phone") Long phone,
+			@RequestParam("businessType") String businessType) {
+		UserVo userInDB = userManager.findOneByPhone(phone);
+
+		boolean isExist = userInDB != null;
+
+		if (!isExist && StringUtils.equals(businessType, Constants.BUSINESS_TYPE_REGISTER)) {// 注册时获取短信验证码
+			return ResponseResultVo.success().setData(userVerifyCode.getToken(phone, businessType));
+		} else if (isExist && StringUtils.equals(businessType, Constants.BUSINESS_TYPE_RESET_PWD)) { // 忘记密码获取短信验证码
+			return ResponseResultVo.success().setData(userVerifyCode.getToken(phone, businessType));
+		} else if (StringUtils.equals(businessType, Constants.BUSINESS_TYPE_SOCIAL)) { // 社交校验
+			ResponseResultVo result = ResponseResultVo
+					.success(isExist ? Responses.SUCCESS : "000999")
+					.setData(userVerifyCode.getToken(phone, businessType));
+			
+			return result;
+		} else if (StringUtils.equals(businessType, Constants.BUSINESS_TYPE_MESSAGE_LOGIN)) { // 短信验证码登录
+			return ResponseResultVo.success().setData(userVerifyCode.getToken(phone, businessType));
+		} else {
+			return ResponseResultVo.failure();
+		}
+	}
+
+	/**
+	 * 
+	 * 描述：</br>
+	 * 获取手机短信验证码
+	 * 
+	 * @param token
+	 *            校验手机短信验证码时，生成的token
+	 * @return
+	 * @author wukj
+	 */
+	@RequestMapping(value = "/verifycode", method = RequestMethod.GET)
+	public ResponseResultVo verifycode(@RequestParam("token") String token) {
+		if (userVerifyCode.send(token)) {
+			return ResponseResultVo.success().setMsg("短信发送成功");
+		}
+		
+		return ResponseResultVo.failure().setMsg("短信发送失败，请重新获取令牌");
+	}
+
+}

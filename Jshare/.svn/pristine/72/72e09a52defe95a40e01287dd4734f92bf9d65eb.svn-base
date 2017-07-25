@@ -1,0 +1,139 @@
+package com.digitalchina.web.common.share.bussiness;
+
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+
+import com.digitalchina.web.common.api.ResultPageVo;
+import com.digitalchina.web.common.db.nosql.Query;
+import com.digitalchina.web.common.db.nosql.mongo.MongoDBId;
+import com.digitalchina.web.common.db.nosql.mongo.MongoQuery;
+import com.digitalchina.web.common.db.nosql.mongo.MongoQuery.Select.From.Where;
+import com.digitalchina.web.common.search.elasticsearch.ESQuery;
+import com.digitalchina.web.common.search.elasticsearch.ESQuery2;
+import com.digitalchina.web.common.search.elasticsearch.ESSession;
+import com.digitalchina.web.common.search.elasticsearch.ESQuery2.Equal;
+import com.digitalchina.web.common.search.elasticsearch.ESQuery2.Like;
+import com.digitalchina.web.common.search.elasticsearch.ESQuery2.Select.From.Where.CustomWhere.Begin.End;
+import com.digitalchina.web.common.share.api.ShareConstants;
+import com.digitalchina.web.common.share.dao.CircleMongoDao;
+import com.digitalchina.web.common.share.vo.CircleVo;
+import com.digitalchina.web.common.share.vo.ShareRecordVo;
+import com.mongodb.client.model.Filters;
+
+/**
+ * 类型描述：<br/>
+ * 圈子管理Manager
+ * 
+ * @createTime 2016年9月5日
+ * @author LJn
+ * 
+ */
+@Service
+public class CircleManager {
+
+	private final static Logger LOG = LogManager.getLogger(CircleManager.class);
+
+	@Autowired
+	private CircleMongoDao circleMongoDao;
+	
+	/**
+	 * 方法描述：<br/>
+	 * 增加
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param applicationMetaSave
+	 */
+	public void doSave(CircleVo circleToSave) {
+
+		String shareRecordId = new ObjectId().toHexString();
+		circleToSave.setId(shareRecordId);
+		
+		circleMongoDao.insert(circleToSave); // MongoDB
+		
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 删除
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param id
+	 */
+	public boolean doRemove(String id) {
+
+		List<CircleVo> records = circleMongoDao
+				.select(MongoQuery.select(MongoDBId.field).from(CircleVo.class)
+						.where(Filters.and(MongoDBId.eq(id))).done()).getResultList();
+
+		if (CollectionUtils.isEmpty(records)) {
+			return false;
+		}
+
+		CircleVo circleToRemove = records.get(0);
+
+		circleMongoDao.delete(circleToRemove); // MongoDB
+		
+		return true;
+	}
+	
+
+	/**
+	 * 方法描述：<br/>
+	 * 修改
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param applicationMetaModify
+	 * @return
+	 */
+	public boolean doModify(CircleVo circleModify) {
+
+		CircleVo result = findVo(circleModify.getId());
+
+		if (result == null) {
+			return false;
+		}
+
+		circleMongoDao.update(circleModify); // MongoDB
+		
+		return true;
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 条项查询
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param id
+	 * @return
+	 */
+	public CircleVo findVo(String circleId) {
+
+		Query query = MongoQuery.select().from(CircleVo.class).where(MongoDBId.eq(circleId)).done();
+
+		List<CircleVo> result = circleMongoDao.select(query).getResultList();
+
+		if(CollectionUtils.isNotEmpty(result)){
+			return result.get(0);
+		}
+		
+		return null;
+	}
+	
+}

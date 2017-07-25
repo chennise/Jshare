@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+	xsi:schemaLocation="
+		http://www.springframework.org/schema/beans 
+		http://www.springframework.org/schema/beans/spring-beans-4.0.xsd">
+
+	<!-- ===============================初始化==================================== -->
+	<!-- 初始化缓存客户端构建器 -->
+	<bean id="xmemcachedClientBuilder" class="net.rubyeye.xmemcached.XMemcachedClientBuilder">
+		<constructor-arg>
+			<list>
+				<bean class="java.net.InetSocketAddress">
+					<constructor-arg>
+						<value>#{configs['memcached.url.server']}</value>
+					</constructor-arg>
+					<constructor-arg>
+						<value>#{configs['memcached.port']}</value>
+					</constructor-arg>
+				</bean>
+			</list>
+		</constructor-arg>
+		<property name="connectionPoolSize" value="#{configs['memcached.connectionPoolSize']}" /> <!-- 连接池大小 -->
+		<property name="commandFactory"> <!-- 协议工厂 -->
+			<bean class="net.rubyeye.xmemcached.command.BinaryCommandFactory"></bean>
+		</property>
+		<property name="sessionLocator"> <!-- 分布策略 -->
+			<bean class="net.rubyeye.xmemcached.impl.KetamaMemcachedSessionLocator"></bean>
+		</property>
+	</bean>
+	<!-- 工厂类生成实例 -->
+	<bean name="xmemcachedClient" factory-bean="xmemcachedClientBuilder"
+		factory-method="build" destroy-method="shutdown" 
+		p:enableHeartBeat="false"/>
+	<!-- ===============================初始化==================================== -->
+	
+	<!-- ===============================注入client==================================== -->
+	<!-- 缓存 -->
+	<bean class="com.digitalchina.web.common.cache.impl.XMemcachedCache"
+		p:globalUnitLiveSeconds="900"
+		p:client-ref="xmemcachedClient"/>
+	<!-- ===============================业务==================================== -->
+	
+
+</beans>

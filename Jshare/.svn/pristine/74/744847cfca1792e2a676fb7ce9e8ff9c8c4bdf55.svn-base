@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--DOCTYPE tran-config SYSTEM "tran.dtd" -->
+<tran-config>
+
+	<tran name="CW0001" operation="增加圈子"
+		servicePath="com.digitalchina.web.common.share.service.ShareService.saveCircle"
+		access="protected" />
+	
+	<tran name="CW0002" operation="根据用户查找圈子"
+		servicePath="com.digitalchina.web.common.share.service.ShareService.findcircles"
+		access="protected" />
+		
+	<tran name="CW0003" operation="增加闲置品"
+		servicePath="com.digitalchina.web.common.share.service.ShareService.saveShare"
+		access="protected" />
+		
+	<tran name="CW0004" operation="查找闲置品"
+		servicePath="com.digitalchina.web.common.share.service.ShareService.findShare"
+		access="public" />
+		
+	<tran name="CW0005" operation="查找我的闲置"
+		servicePath="com.digitalchina.web.common.share.service.ShareService.findMyShare"
+		access="protected" />
+		
+	<tran name="CW0006" operation="ES查询"
+		servicePath="com.digitalchina.web.common.share.service.ShareService.find"
+		access="public" />
+		
+	<tran name="CW0007" operation="申请闲置品"
+		servicePath="com.digitalchina.web.common.share.service.ShareService.applyShare"
+		access="protected" />
+		
+	<tran name="CW0008" operation="查找我的待办"
+		servicePath="com.digitalchina.web.common.share.service.ShareService.findMyWork"
+		access="protected" />
+		
+	<tran name="CW0009" operation="查找我的申请"
+		servicePath="com.digitalchina.web.common.share.service.ShareService.findMyApply"
+		access="protected" />
+		
+	<tran name="CW0010" operation="赠送闲置"
+		servicePath="com.digitalchina.web.common.share.service.ShareService.giveShare"
+		access="protected" />
+</tran-config>

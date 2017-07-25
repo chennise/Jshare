@@ -1,0 +1,216 @@
+package com.digitalchina.web.common.user.action;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.commons.lang.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.digitalchina.web.common.action.ResponseResultVo;
+import com.digitalchina.web.common.spring.http.annotation.JsonModelAttribute;
+import com.digitalchina.web.common.user.api.Constants;
+import com.digitalchina.web.common.user.api.IUserManager;
+import com.digitalchina.web.common.user.api.IUserSocialManager;
+import com.digitalchina.web.common.user.business.UserCache;
+import com.digitalchina.web.common.user.business.UserToken;
+import com.digitalchina.web.common.user.business.UserVerifyCode;
+import com.digitalchina.web.common.user.spring.SSOConstants;
+import com.digitalchina.web.common.user.spring.SSOUser;
+import com.digitalchina.web.common.user.vo.UserSocialVo;
+import com.digitalchina.web.common.user.vo.UserVo;
+import com.digitalchina.web.common.user.vo.validation.BindGroup;
+import com.digitalchina.web.common.user.vo.validation.FindGroup;
+import com.digitalchina.web.common.user.vo.validation.LoginGroup;
+
+/**
+ * 类型描述：<br/>
+ * 社交Action
+ * 
+ * @createTime 2016年6月30日
+ * @author maiwj
+ * 
+ */
+@RequestMapping("/social")
+@RestController
+public class SocialAction {
+
+	@Autowired
+	private UserToken userToken;
+	@Autowired
+	private UserCache userCache;
+	@Autowired
+	private UserVerifyCode userVerifyCode;
+	@Autowired
+	private IUserManager userManager;
+	@Autowired
+	private IUserSocialManager userSocialManager;
+
+	/**
+	 * 方法描述：<br/>
+	 * 主动社交查找
+	 * 
+	 * @createTime 2016年7月7日
+	 * @author maiwj
+	 *
+	 * @param social
+	 * @param error
+	 * @return
+	 */
+	@RequestMapping(value = "/find", method = { RequestMethod.GET, RequestMethod.PUT, RequestMethod.POST })
+	public ResponseResultVo find(SSOUser user,
+			@JsonModelAttribute @Validated({ FindGroup.class }) UserSocialVo social, BindingResult error) {
+		if (error.hasErrors()) {
+			return ResponseResultVo.failure().setMsg(error);
+		}
+
+		social.setUserId(user.getId());
+
+		UserSocialVo result = userSocialManager.findVo(social);
+		if (result != null) { // 如果能够找到对应社交用户
+			return ResponseResultVo.success().setData(result);
+		} else {
+			return ResponseResultVo.failure();
+		}
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 主动社交免密登录
+	 * 
+	 * @createTime 2016年7月1日
+	 * @author maiwj
+	 *
+	 * @param social
+	 * @param error
+	 * @return
+	 */
+	@RequestMapping(value = "/login", method = { RequestMethod.PUT, RequestMethod.POST })
+	public ResponseResultVo login(@JsonModelAttribute @Validated({ LoginGroup.class }) UserSocialVo social,
+			BindingResult error) {
+		if (error.hasErrors()) {
+			return ResponseResultVo.failure().setMsg(error);
+		}
+
+		UserSocialVo result = userSocialManager.findVo(social);
+		if (result != null) { // 如果能够找到对应社交用户
+			Long userId = result.getUserId();
+			UserVo userLogined = null;
+			if (userCache.more(userId, 900)) { // 刷新已经存在的用户
+				userLogined = userCache.get(userId);
+			} else {
+				userLogined = userManager.findOne(UserVo.createById(userId));
+				userLogined = UserVo.clean(userLogined);
+				userCache.set(userId, userLogined);
+			}
+
+			Map<String, Object> attach = new HashMap<String, Object>(1);
+			attach.put(SSOConstants.USER_TOKEN_COOKIE_NAME, userToken.create(userId));
+
+			return ResponseResultVo.success().setData(userLogined).setAttach(attach);
+		} else {
+			return ResponseResultVo.failure();
+		}
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 增加社交关系
+	 * 
+	 * @createTime 2016年8月8日
+	 * @author maiwj
+	 *
+	 * @param user
+	 * @param social
+	 * @param error
+	 * @return
+	 */
+	@RequestMapping(value = "/save", method = RequestMethod.POST)
+	public ResponseResultVo save(SSOUser user, @JsonModelAttribute @Validated({ BindGroup.class }) UserSocialVo social,
+			BindingResult error) {
+		if (error.hasErrors()) {
+			return ResponseResultVo.failure().setMsg(error);
+		}
+
+		social.setUserId(user.getId());
+		UserSocialVo tempSocial = userSocialManager.findVo(social);
+		if (tempSocial != null) {
+			return ResponseResultVo.failure().setMsg("社交关系已存在");
+		}
+
+		if (userSocialManager.doSave(social)) {
+			return ResponseResultVo.success();
+		}
+
+		return ResponseResultVo.failure().setMsg("社交关系已存在");
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 主动社交绑定
+	 * 
+	 * @createTime 2016年8月8日
+	 * @author maiwj
+	 *
+	 * @param ssoUser
+	 * @param userBiding
+	 * @param error
+	 * @return
+	 */
+	@RequestMapping(value = "/bind", method = RequestMethod.POST)
+	public ResponseResultVo bind(@Lazy SSOUser ssoUser, @JsonModelAttribute @Validated({ BindGroup.class }) UserVo userBiding,
+			BindingResult error) {
+		if (error.hasErrors()) {
+			return ResponseResultVo.failure().setMsg(error);
+		}
+
+		String socialId = userBiding.getSocialId();
+		
+		/*
+		 *  如果已经登录，直接拿当前登录的用户进行处理。
+		 *  如果没有登录，就依靠phone来获取用户。
+		 */
+		Long userId = null;
+		UserVo user = null;
+		if (ssoUser != null) {
+			user = ssoUser;
+		} else {
+			user = userManager.findOneByPhone(userBiding.getPhone());
+		}
+		
+		/*
+		 * 进行社交绑定
+		 */
+		if (user == null) { // 如果用户不存在，则需要注册
+			if (StringUtils.isBlank(userBiding.getPassword())) {
+				return ResponseResultVo.failure().setMsg("密码不能为空");
+			}
+			if (!userManager.doRegiste(userBiding, Constants.BUSINESS_TYPE_SOCIAL)) {
+				return ResponseResultVo.failure("999000").setMsg("短信验证码错误或失效");
+			}
+			user = userBiding;
+		} else { // 如果用户存在，校验验证码
+			if (!userVerifyCode.check(userBiding.getPhone(), userBiding.getVerifyCode(), Constants.BUSINESS_TYPE_SOCIAL)) {
+				return ResponseResultVo.failure("999000").setMsg("短信验证码错误或失效");
+			}
+		}
+		userId = user.getId();
+		userSocialManager.doSave(UserSocialVo.createByAll(userId, socialId));
+		
+		UserVo userLogined = UserVo.clean(user);
+		if (!userCache.more(userId, 900)) {
+			userCache.set(userId, userLogined);
+		}
+
+		Map<String, Object> attach = new HashMap<String, Object>(1);
+		attach.put(SSOConstants.USER_TOKEN_COOKIE_NAME, userToken.create(userId));
+
+		return ResponseResultVo.success().setData(userLogined).setAttach(attach);
+	}
+
+}

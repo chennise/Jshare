@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--DOCTYPE tran-config SYSTEM "tran.dtd" -->
+<tran-config>
+
+	<tran name="CW0001" operation="增加圈子"
+		servicePath="com.digitalchina.web.common.share.service.ShareService.saveCircle"
+		access="protected" />
+	
+</tran-config>

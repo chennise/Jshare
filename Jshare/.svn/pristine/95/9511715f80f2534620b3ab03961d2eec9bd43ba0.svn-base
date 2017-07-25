@@ -1,0 +1,32 @@
+package com.digitalchina.web.common.share.api;
+
+/**
+ * 类型描述：<br/>
+ * 系统常量
+ * 
+ * @createTime 2016年9月5日
+ * @author lijin
+ * 
+ */
+public interface ShareConstants {
+
+	/**
+	 * 申请中
+	 */
+	int STATUS_APPLY = 0;
+	
+	/**
+	 * 已结束
+	 */
+	int STATUS_FINISH = 100;
+
+	/**
+	 * 公众号接口配置的Token
+	 */
+	String TOKEN = "share";
+	
+	/**
+	 * 字符编码:UTF-8
+	 */
+	String ENCODING = "UTF-8";
+}

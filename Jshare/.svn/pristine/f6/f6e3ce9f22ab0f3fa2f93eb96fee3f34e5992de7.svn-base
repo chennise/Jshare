@@ -1,0 +1,100 @@
+package com.digitalchina.web.common.user.business;
+
+import java.util.Random;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.stereotype.Component;
+
+import com.digitalchina.web.common.user.api.exception.UserNotFoundException;
+import com.digitalchina.web.common.util.config.PropertiesHandler;
+import com.digitalchina.web.common.util.encode.HexHandler;
+import com.digitalchina.web.common.util.encryption.EncryptionHandler;
+import com.digitalchina.web.common.util.lang.DateHandler;
+
+/**
+ * 类型描述：<br/>
+ * 用户令牌
+ * 
+ * @createTime 2016年6月26日
+ * @author maiwj
+ * 
+ */
+@Component
+public class UserToken {
+	
+	private final static Logger LOG = LogManager.getLogger(UserToken.class);
+
+	private static final Integer LIMIT_MS = 1000 * 60 * 60 * 1; // token 1小时内可持续
+	private static final String SPLITE = "@";
+	private static final byte[] TOKEN_AES_KEY = HexHandler.decode(PropertiesHandler.getProperty("token.aes.key",
+			"dca5f91b5757047df8effcfc8ceacd085028fe44896c1f32f67d2be44bbbf16e")); // 用KeyGenerator产生："yantian!2016_smartcity@digitalchina.com"
+	
+	private static final Random TOKEN_RANDOM = new Random();
+
+	/**
+	 * 方法描述：<br/>
+	 * 创建用户令牌
+	 * 
+	 * @createTime 2016年6月26日
+	 * @author maiwj
+	 *
+	 * @param userId
+	 * @return
+	 */
+	public String create(Long userId) {
+		/**
+		 * 构建令牌，令牌实际上是用户的id经过AES的256位加密而成
+		 */
+		// multi
+		String userIdStr = userId + SPLITE + (DateHandler.getTimeInMillis() + LIMIT_MS);
+		// key
+		String encryptId = EncryptionHandler.key(userIdStr, TOKEN_AES_KEY).encryptAES();
+		// crc
+		String encryptIdCRC = EncryptionHandler.crc(encryptId).get();
+		// random
+		int pox = TOKEN_RANDOM.nextInt(encryptId.length());
+		StringBuilder encryptIdSb = new StringBuilder(encryptId)
+				.append(StringUtils.leftPad(String.valueOf(pox), 4, "0"));
+		// append
+		encryptIdSb.insert(pox, encryptIdCRC);
+
+		return encryptIdSb.toString();
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 导出Id
+	 * 
+	 * @createTime 2016年6月26日
+	 * @author maiwj
+	 *
+	 * @param token
+	 * @return
+	 */
+	public Long export(String token) {
+		try {
+			StringBuilder tokenSb = new StringBuilder(token);
+			// get random
+			int pox = Integer.parseInt(tokenSb.substring(token.length() - 4));
+			// find crc
+			String encryptIdCRC = tokenSb.substring(pox, pox + 4);
+			// find id
+			String encryptId = tokenSb.delete(pox, pox + 4).delete(tokenSb.length() - 4, tokenSb.length()).toString();
+
+			if (StringUtils.equals(EncryptionHandler.crc(encryptId).get(), encryptIdCRC)) {
+				String userIdStr = EncryptionHandler.key(encryptId, TOKEN_AES_KEY).decryptAES();
+				String[] userIds = userIdStr.split(SPLITE);
+				if (System.currentTimeMillis() < Long.valueOf(userIds[1])) { // 在可以持续的时间内有效
+					return Long.valueOf(userIdStr.split(SPLITE)[0]);
+				}
+			}
+		} catch(Exception e) {
+			LOG.error(e);
+		}
+
+		throw new UserNotFoundException(); // 用户未登录
+	}
+	
+}

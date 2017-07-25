@@ -1,0 +1,161 @@
+package com.digitalchina.web.common.share.vo;
+
+import java.io.Serializable;
+import java.util.List;
+
+import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Null;
+
+import org.hibernate.validator.constraints.Length;
+import org.hibernate.validator.constraints.NotBlank;
+
+import com.digitalchina.web.common.db.nosql.mongo.annotation.Collection;
+import com.digitalchina.web.common.db.nosql.mongo.annotation.Embedded;
+import com.digitalchina.web.common.db.nosql.mongo.annotation.Id;
+import com.digitalchina.web.common.validator.ModifyGroup;
+import com.digitalchina.web.common.validator.SaveGroup;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+
+/**
+ * 类型描述：<br/>
+ * 闲置记录对象
+ * 
+ * @author LJn
+ *
+ */
+@Collection("records")
+@JsonInclude(Include.NON_NULL)
+public class ShareRecordVo implements Serializable {
+
+	private static final long serialVersionUID = -6247310320184534971L;
+
+	@Null(message = "{shareRecord.limit}", groups = SaveGroup.class)
+	@Id
+	private String id; // 主键
+	@NotBlank(message = "{shareRecord.name.blank}", groups = SaveGroup.class)
+	@Length(message = "{shareRecord.name.length}", groups = SaveGroup.class, max = 10)
+	private String name; // 名称
+	@NotBlank(message = "{shareRecord.summary.blank}", groups = SaveGroup.class)
+	@Length(message = "{shareRecord.summary.length}", groups = SaveGroup.class, max = 100)
+	private String summary; // 简介
+	private Long publishTime; // 发布时间
+	private String imageUrl; // 图片Url
+	private Integer status; // 状态
+	@NotNull(message = "{shareRecord.type.null}", groups = SaveGroup.class)
+	private Integer type; // 类型        
+	@Embedded
+	private UserVo publisher; // 发布者
+	@Embedded
+	private List<CircleVo> circles; // 圈子
+	@Null(message = "{shareRecord.applyNum.limit}", groups = { SaveGroup.class, ModifyGroup.class })
+	private Integer applyNum; // 申请人数
+	@Embedded
+	private List<UserVo> applicants; // 申请者
+	
+	/**
+	 * 全文检索辅助
+	 */
+	private String recordId; // 记录id
+	private CircleVo circle; // 圈子
+	
+	/**
+	 * 申请状态辅助
+	 */
+	private Boolean applyState; // 状态
+	
+	public String getId() {
+		return id;
+	}
+	public void setId(String id) {
+		this.id = id;
+	}
+	public String getName() {
+		return name;
+	}
+	public void setName(String name) {
+		this.name = name;
+	}
+	public String getSummary() {
+		return summary;
+	}
+	public void setSummary(String summary) {
+		this.summary = summary;
+	}
+	public Long getPublishTime() {
+		return publishTime;
+	}
+	public void setPublishTime(Long publishTime) {
+		this.publishTime = publishTime;
+	}
+	public String getImageUrl() {
+		return imageUrl;
+	}
+	public void setImageUrl(String imageUrl) {
+		this.imageUrl = imageUrl;
+	}
+	public Integer getStatus() {
+		return status;
+	}
+	public void setStatus(Integer status) {
+		this.status = status;
+	}
+	public Integer getType() {
+		return type;
+	}
+	public void setType(Integer type) {
+		this.type = type;
+	}
+	public UserVo getPublisher() {
+		return publisher;
+	}
+	public void setPublisher(UserVo publisher) {
+		this.publisher = publisher;
+	}
+	public List<CircleVo> getCircles() {
+		return circles;
+	}
+	public void setCircles(List<CircleVo> circles) {
+		this.circles = circles;
+	}
+	public Integer getApplyNum() {
+		return applyNum;
+	}
+	public void setApplyNum(Integer applyNum) {
+		this.applyNum = applyNum;
+	}
+	public List<UserVo> getApplicants() {
+		return applicants;
+	}
+	public void setApplicants(List<UserVo> applicants) {
+		this.applicants = applicants;
+	}
+	public CircleVo getCircle() {
+		return circle;
+	}
+	public void setCircle(CircleVo circle) {
+		this.circle = circle;
+	}
+	public Boolean getApplyState() {
+		return applyState;
+	}
+	public void setApplyState(Boolean applyState) {
+		this.applyState = applyState;
+	}
+	public String getRecordId() {
+		return recordId;
+	}
+	public void setRecordId(String recordId) {
+		this.recordId = recordId;
+	}
+	@Override
+	public String toString() {
+		return "ShareRecordVo [id=" + id + ", name=" + name + ", summary="
+				+ summary + ", publishTime=" + publishTime + ", imageUrl="
+				+ imageUrl + ", status=" + status + ", type=" + type
+				+ ", publisher=" + publisher + ", circles=" + circles
+				+ ", applyNum=" + applyNum + ", applicants=" + applicants
+				+ ", circle=" + circle + "]";
+	}
+	
+}

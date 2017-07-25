@@ -1,0 +1,145 @@
+package com.digitalchina.web.common.user.business;
+
+import java.util.Map;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.digitalchina.web.common.api.ResultPageVo;
+import com.digitalchina.web.common.user.api.Constants;
+import com.digitalchina.web.common.user.api.IUserManager;
+import com.digitalchina.web.common.user.dao.UserDao;
+import com.digitalchina.web.common.user.vo.UserVo;
+import com.digitalchina.web.common.util.encryption.EncryptionHandler;
+import com.digitalchina.web.common.util.lang.DateHandler;
+
+/**
+ * 
+ * 描述：</br>
+ * 用户信息管理
+ * 
+ * @author wukj
+ * @createTime 2016年3月1日
+ * 
+ */
+@Service
+public class UserManager implements IUserManager {
+	
+	private final static Logger LOG = LogManager.getLogger(UserManager.class);
+
+	@Autowired
+	private UserDao userDao;
+	@Autowired
+	private UserVerifyCode userVerifyCode;
+
+	@Override
+	public UserVo findOne(UserVo user) {
+		if (user == null) {
+			return null;
+		}
+		return userDao.selectVo(user);
+	}
+
+	@Override
+	public UserVo findOneByPhone(Long phone) {
+		if (phone == null) {
+			return null;
+		}
+		return userDao.selectVoByPhone(phone);
+	}
+
+	@Override
+	public void doModify(UserVo user) {
+		userDao.updateVo(user);
+	}
+
+	@Override
+	public boolean doModifyPassword(Long userId, Long phone, String verifyCode, String password) {
+		if (userVerifyCode.check(phone, verifyCode, Constants.BUSINESS_TYPE_RESET_PWD)) {
+			userDao.updateVo(
+					UserVo.createByPassword(userId, EncryptionHandler.messageDigest(password, null).encryptMD5()));
+			return true;
+		}
+		return false;
+	}
+
+	@Override
+	public ResultPageVo<UserVo> findPage(Integer requestPage, Integer pageSize, Map<String, Object> conditions) {
+		return null;
+	}
+
+	@Override
+	public UserVo doSave(UserVo user) {
+		if (user != null) {
+			user.setNickname(removeFourChar(user.getNickname()));
+			userDao.insertVo(user);
+		}
+		return user;
+	}
+
+	@Override
+	public void doRemove(UserVo user) {
+		if (user != null) {
+			user.setAvailable(0);
+
+			userDao.updateVo(user);
+		}
+	}
+
+	@Override
+	public UserVo login(Long phone, String passwordSHA1) {
+		UserVo user = this.findOneByPhone(phone);
+		if (user != null) {
+			String passwdSHA1MD5 = EncryptionHandler.messageDigest(passwordSHA1, null).encryptMD5();
+			if (StringUtils.equals(passwdSHA1MD5, user.getPassword())) {
+				user.setPassword(null);
+				return user;
+			}
+		}
+		return null;
+	}
+
+	@Override
+	public boolean doRegiste(UserVo user, String verifyCodeBusinsessType) {
+		if (userVerifyCode.check(user.getPhone(), user.getVerifyCode(), verifyCodeBusinsessType)) {
+			return doRegiste(user);
+		}
+		return false;
+	}
+	
+	@Override
+	public boolean doRegiste(UserVo user) {
+		
+		user.setNickname(removeFourChar(user.getNickname()));
+		user.setAvailable(1); // 用户可用
+		user.setRegisterTime(DateHandler.getTimeInMillis());
+		user.setPassword(EncryptionHandler.messageDigest(user.getPassword(), null).encryptMD5());// 密码前端传过来时是SHA1加密，然后再用MD5存入库
+		userDao.insertVo(user);
+
+		return true;
+	}
+	
+	/**
+     * 替换四个字节的字符 '\xF0\x9F\x98\x84\xF0\x9F）的解决方案 😁
+     * @author ChenGuiYong
+     * @data 2015年8月11日 上午10:31:50
+     * @param content
+     * @return
+     */
+    public static String removeFourChar(String content) {
+        byte[] conbyte = content.getBytes();
+        for (int i = 0; i < conbyte.length; i++) {
+            if ((conbyte[i] & 0xF8) == 0xF0) {
+                for (int j = 0; j < 4; j++) {                          
+                    conbyte[i+j]=0x30;                     
+                }  
+                i += 3;
+            }
+        }
+        content = new String(conbyte);
+        return content.replaceAll("0000", "");
+    }
+}

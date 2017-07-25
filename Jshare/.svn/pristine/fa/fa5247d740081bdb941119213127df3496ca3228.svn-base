@@ -1,0 +1,192 @@
+package com.digitalchina.web.common.share.bussiness;
+
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+
+import com.digitalchina.web.common.api.ResultPageVo;
+import com.digitalchina.web.common.db.nosql.Query;
+import com.digitalchina.web.common.db.nosql.mongo.MongoDBId;
+import com.digitalchina.web.common.db.nosql.mongo.MongoQuery;
+import com.digitalchina.web.common.db.nosql.mongo.MongoQuery.Select.From.Where;
+import com.digitalchina.web.common.search.elasticsearch.ESQuery;
+import com.digitalchina.web.common.search.elasticsearch.ESQuery2;
+import com.digitalchina.web.common.search.elasticsearch.ESSession;
+import com.digitalchina.web.common.search.elasticsearch.ESQuery2.Equal;
+import com.digitalchina.web.common.search.elasticsearch.ESQuery2.Like;
+import com.digitalchina.web.common.search.elasticsearch.ESQuery2.Select.From.Where.CustomWhere.Begin.End;
+import com.digitalchina.web.common.share.api.ShareConstants;
+import com.digitalchina.web.common.share.dao.ShareMongoDao;
+import com.digitalchina.web.common.share.vo.ShareRecordVo;
+import com.mongodb.client.model.Filters;
+
+/**
+ * 类型描述：<br/>
+ * 闲置品管理Manager
+ * 
+ * @createTime 2016年9月5日
+ * @author LJn
+ * 
+ */
+@Service
+public class ShareManager {
+
+	private final static Logger LOG = LogManager.getLogger(ShareManager.class);
+
+	@Autowired
+	private ShareMongoDao shareMongoDao;
+	@Lazy
+	@Autowired
+	private ESSession shareRecordEssession;
+	
+	/**
+	 * 方法描述：<br/>
+	 * 增加
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param applicationMetaSave
+	 */
+	public void doSave(ShareRecordVo shareRecordSave) {
+
+		String applicationMetaId = new ObjectId().toHexString();
+		
+		shareRecordSave.setId(applicationMetaId);
+		shareRecordSave.setPublishTime(System.currentTimeMillis());
+		shareRecordSave.setStatus(ShareConstants.STATUS_APPLY);
+		shareRecordSave.setApplyNum(0);
+		
+		shareMongoDao.insert(shareRecordSave); // MongoDB
+		
+		shareRecordEssession.insert(shareRecordSave); // Elasticsearch
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 删除
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param id
+	 */
+	public boolean doRemove(String id) {
+
+		List<ShareRecordVo> records = shareMongoDao
+				.select(MongoQuery.select(MongoDBId.field).from(ShareRecordVo.class)
+						.where(Filters.and(MongoDBId.eq(id))).done()).getResultList();
+
+		if (CollectionUtils.isEmpty(records)) {
+			return false;
+		}
+
+		ShareRecordVo shareRecordToRemove = records.get(0);
+
+		shareMongoDao.delete(shareRecordToRemove); // MongoDB
+		
+		shareRecordEssession.delete(shareRecordToRemove); // Elasticsearch
+
+		return true;
+	}
+	
+
+	/**
+	 * 方法描述：<br/>
+	 * 修改
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param applicationMetaModify
+	 * @return
+	 */
+	public boolean doModify(ShareRecordVo shareRecordModify) {
+
+		ShareRecordVo result = findVo(shareRecordModify.getId());
+
+		if (result == null) {
+			return false;
+		}
+
+		shareMongoDao.update(shareRecordModify); // MongoDB
+		
+		shareRecordEssession.update(shareRecordModify); // Elasticsearch
+
+		return true;
+	}
+
+	/**
+	 * 方法描述：<br/>
+	 * 条项查询
+	 * 
+	 * @createTime 2016年9月6日
+	 * @author lijin
+	 *
+	 * @param id
+	 * @return
+	 */
+	public ShareRecordVo findVo(String shareRecordId) {
+
+		Query query = MongoQuery.select().from(ShareRecordVo.class).where(MongoDBId.eq(shareRecordId)).done();
+
+		List<ShareRecordVo> result = shareMongoDao.select(query).getResultList();
+
+		if(CollectionUtils.isNotEmpty(result)){
+			return result.get(0);
+		}
+		
+		return null;
+	}
+	
+	/**
+	 * 方法描述：<br/>
+	 * ES查询
+	 * 
+	 * @createTime 2016年8月29日
+	 * @author maiwj
+	 *
+	 * @param version
+	 * @param keyword
+	 * @param requestPage
+	 * @param pageSize
+	 * @param orderByCollectionTimeInASC
+	 * @return
+	 */
+	public ResultPageVo<?> find(String keyword, Integer requestPage,
+			Integer pageSize, boolean orderByCollectionTimeInASC) {
+		
+		ESQuery query = null;
+			
+		End limitQuery = ESQuery2.select()
+				.from(ShareRecordVo.class)
+				.where()
+					.begin()
+						.merge(Equal.as(version, "version"))
+						.merge(Like.as(keyword, "name", "shortName", "summary", "tags"))
+					.end();
+			
+		if (pageSize == null) {
+			pageSize = 10;
+		}
+		if (requestPage == null) {
+			requestPage = 1;
+		}
+			
+		if (orderByCollectionTimeInASC) {
+			query = limitQuery.limit(requestPage, pageSize).asc("publishTime").done();
+		} else {
+			query = limitQuery.limit(requestPage, pageSize).desc("publishTime").done();
+		}
+			
+		return applicationRecordEssession.selectListAsMap(query);
+	}
+}

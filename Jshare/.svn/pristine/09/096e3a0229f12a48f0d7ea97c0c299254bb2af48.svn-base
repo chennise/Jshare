@@ -1,0 +1,5 @@
+package com.share.web.common.user.action;
+
+public class UserAction {
+
+}
